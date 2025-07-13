@@ -1,0 +1,104 @@
+# Byte-compiled / optimized / DLL files
+
+**pycache**/
+\*.py\[cod]
+\*\$py.class
+
+# Virtual environment
+
+.venv/
+venv/
+env/
+ENV/
+.pipenv/
+
+# VSCode config
+
+.vscode/
+
+# Environment variables
+
+.env
+.env.\*
+
+# OS files
+
+.DS\_Store
+Thumbs.db
+
+# Logs and local data
+
+\*.log
+\*.sqlite3
+\*.db
+\*.pid
+\*.pkl
+\*.joblib
+
+# Cache & compiled output
+
+.cache/
+\*.ipynb\_checkpoints
+**pycache**/
+\*.egg-info/
+\*.egg/
+\*.manifest
+\*.spec
+\*.out
+
+# Coverage & test
+
+.coverage
+htmlcov/
+.tox/
+.nox/
+.pytest\_cache/
+test-results/
+
+# Notebooks
+
+\*.ipynb\_checkpoints
+.ipynb\_checkpoints/
+
+# Streamlit-specific
+
+.streamlit/secrets.toml
+
+# Document uploads & test data
+
+uploaded\_files/
+test\_docs/
+uploads/
+temp/
+\*.pdf
+\*.txt
+
+# Model/Vector stores
+
+models/
+vectorstore/
+\*.faiss
+\*.npz
+\*.pt
+\*.onnx
+
+# Language model outputs
+
+output/
+summaries/
+\*.jsonl
+
+# Frontend node\_modules (if applicable)
+
+node\_modules/
+
+# Build artifacts
+
+build/
+dist/
+\*.egg-info/
+
+# IDE files
+
+.idea/
+\*.iml
