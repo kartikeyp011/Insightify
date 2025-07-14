@@ -45,7 +45,7 @@ async def upload_file(file: UploadFile = File(...)):
         summary = generate_summary(text)
 
         # ✅ Step 6: Save raw text to a file (optional: useful for debug or later use)
-        with open("backend/vectorstore/temp_text.txt", "w", encoding="utf-8") as f:
+        with open("vectorstore/temp_text.txt", "w", encoding="utf-8") as f:
             f.write(text)
 
         # ✅ Step 7: Split the text into overlapping chunks

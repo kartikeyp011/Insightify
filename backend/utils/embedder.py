@@ -11,8 +11,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 
 # ✅ Paths to store FAISS index and chunk metadata
-INDEX_PATH = "backend/vectorstore/faiss_index"
-META_PATH = "backend/vectorstore/chunk_texts.pkl"
+INDEX_PATH = "vectorstore/faiss_index"
+META_PATH = "vectorstore/chunk_texts.pkl"
 
 def embed_and_store_chunks(chunks: list[str]):
     """

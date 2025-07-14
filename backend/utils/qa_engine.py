@@ -35,7 +35,7 @@ Answer:
     response = model.generate_content(prompt)
     return response.text.strip()
 
-CHUNKS_PATH = "backend/vectorstore/chunk_texts.pkl"
+CHUNKS_PATH = "vectorstore/chunk_texts.pkl"
 
 def load_context() -> str:
     """

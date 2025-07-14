@@ -3,7 +3,7 @@ import requests
 import os
 
 # ✅ Constants
-SUMMARY_PATH = "frontend/summary.txt"  # File to store the last summary
+SUMMARY_PATH = "summary.txt"  # File to store the last summary
 
 # ✅ 1. Configure the Streamlit page
 st.set_page_config(page_title="Smart Research Assistant", layout="wide")
