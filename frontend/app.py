@@ -6,10 +6,10 @@ import os
 SUMMARY_PATH = "summary.txt"  # File to store the last summary
 
 # ✅ 1. Configure the Streamlit page
-st.set_page_config(page_title="Smart Research Assistant", layout="wide")
+st.set_page_config(page_title="InsightifyAI", layout="wide")
 
 # ✅ 2. Page Header
-st.title("📘 Smart Research Assistant")
+st.title("📘InsightifyAI")
 st.markdown("Upload a document and interact with it using AI — ask questions, get challenged, and receive justifications.")
 
 # ✅ 3. Sidebar Navigation
