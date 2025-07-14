@@ -1,5 +1,9 @@
 import streamlit as st
 import requests
+import os
+
+# ✅ Constants
+SUMMARY_PATH = "frontend/summary.txt"  # File to store the last summary
 
 # ✅ 1. Configure the Streamlit page
 st.set_page_config(page_title="Smart Research Assistant", layout="wide")
@@ -14,11 +18,17 @@ tab = st.sidebar.radio("Go to", ["📤 Upload Document", "❓ Ask Anything", "�
 
 # ✅ 4. Session state for data persistence
 if "summary" not in st.session_state:
-    st.session_state.summary = None
+    # Try loading previous summary from disk
+    if os.path.exists(SUMMARY_PATH):
+        with open(SUMMARY_PATH, "r", encoding="utf-8") as f:
+            st.session_state.summary = f.read()
+    else:
+        st.session_state.summary = None
+
 if "questions" not in st.session_state:
     st.session_state.questions = []
 if "answers" not in st.session_state:
-    st.session_state.answers = ["", "", ""]  # Fixed length for 3 answers
+    st.session_state.answers = ["", "", ""]
 if "evaluation" not in st.session_state:
     st.session_state.evaluation = []
 
@@ -34,11 +44,22 @@ if tab == "📤 Upload Document":
 
         if response.status_code == 200:
             st.success("✅ File uploaded successfully!")
-            st.session_state.summary = response.json()["summary"]
+            summary = response.json()["summary"]
+            st.session_state.summary = summary
+
+            # Save summary to disk
+            with open(SUMMARY_PATH, "w", encoding="utf-8") as f:
+                f.write(summary)
+
             st.subheader("📄 Auto Summary")
-            st.markdown(st.session_state.summary)
+            st.markdown(summary)
         else:
             st.error(f"❌ Upload failed: {response.json()['detail']}")
+
+    elif st.session_state.summary:
+        # If a summary already exists, show it
+        st.subheader("📄 Auto Summary")
+        st.markdown(st.session_state.summary)
 
 # 🔷 6. Tab 2: Ask Anything
 elif tab == "❓ Ask Anything":
@@ -62,35 +83,32 @@ elif tab == "❓ Ask Anything":
 elif tab == "🧠 Challenge Me":
     st.header("🧠 Challenge Yourself on the Document")
 
-    # Step 1: Generate questions
     if not st.session_state.questions:
         if st.button("Generate Challenge Questions"):
             with st.spinner("💡 Generating questions..."):
                 response = requests.get("http://localhost:8000/api/challenge")
             if response.status_code == 200:
                 st.session_state.questions = response.json()["questions"]
-                st.session_state.answers = ["", "", ""]  # Reset answers
-                st.session_state.evaluation = []         # Clear past evaluations
+                st.session_state.answers = ["", "", ""]
+                st.session_state.evaluation = []
             else:
                 st.error("❌ Failed to generate questions.")
 
-    # Step 2: Show questions & collect answers
     if st.session_state.questions:
         st.subheader("📋 Answer the Following Questions")
 
         for i, q in enumerate(st.session_state.questions):
             st.session_state.answers[i] = st.text_area(
-                f"Q{i+1}: {q}", 
+                f"Q{i+1}: {q}",
                 value=st.session_state.answers[i],
                 key=f"user_answer_{i}"
             )
 
-        # Step 3: Submit for evaluation
         if st.button("Submit Answers"):
             if all(ans.strip() for ans in st.session_state.answers):
                 with st.spinner("📝 Evaluating your answers..."):
                     response = requests.post(
-                        "http://localhost:8000/api/evaluate", 
+                        "http://localhost:8000/api/evaluate",
                         json={"answers": st.session_state.answers}
                     )
 
@@ -101,7 +119,6 @@ elif tab == "🧠 Challenge Me":
             else:
                 st.warning("⚠️ Please answer all 3 questions before submitting.")
 
-    # Step 4: Show evaluation
     if st.session_state.evaluation:
         st.subheader("🧾 Evaluation Results")
         for i, fb in enumerate(st.session_state.evaluation):
