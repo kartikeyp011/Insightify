@@ -84,7 +84,7 @@ import re
 import google.generativeai as genai
 from dotenv import load_dotenv
 import os
-from backend.utils.qa_engine import load_context  # Make sure load_context is already defined
+from utils.qa_engine import load_context  # Make sure load_context is already defined
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_KEY"))

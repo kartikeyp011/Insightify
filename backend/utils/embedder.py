@@ -2,8 +2,8 @@ import os
 import pickle
 import numpy as np
 import faiss
-import google.generativeai as genai
 from dotenv import load_dotenv
+import google.generativeai as genai
 
 # ✅ Load Gemini API Key from .env file
 load_dotenv()

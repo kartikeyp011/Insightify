@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from backend.utils.retriever import get_relevant_chunks
-from backend.utils.qa_engine import generate_answer
+from utils.retriever import get_relevant_chunks
+from utils.qa_engine import generate_answer
 
 router = APIRouter()
 
