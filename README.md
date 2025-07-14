@@ -1,10 +1,6 @@
 # 📘 Insightify
 
-Your intelligent document companion – powered by GenAI.
-
-Insightify is an AI-powered assistant that reads research papers, reports, or legal documents and provides smart summaries, answers context-rich questions, and challenges your understanding with logic-based questions. Designed for deep comprehension, not just keywords.
-
----
+Insightify is an AI-powered tool that enables users to upload a research document (PDF or TXT) and interact with it intelligently — by asking questions, receiving logic-based challenges, and getting evaluated on their understanding.
 
 ## 🚀 Features
 
@@ -23,102 +19,98 @@ Receive a concise ≤150-word summary right after uploading your document.
 🧾 Justified Answers
 Each answer includes a reference (e.g., “as stated in section 2…”) to ensure transparency and trust.
 
-🎁 Bonus Features (Optional)
-✅ Context memory for follow-up questions
-✅ Snippet highlighting from the source document
-✅ Conversation history tracking
+---
+
+## ⚙️ Tech Stack
+
+| Component      | Technology               |
+| -------------- | ------------------------ |
+| Backend API    | FastAPI                  |
+| Frontend UI    | Streamlit                |
+| Embeddings     | Gemini 2.5 Embedding API |
+| LLM Reasoning  | Gemini 2.5 Pro API       |
+| Vector DB      | FAISS                    |
+| Chunking Logic | LangChain                |
+| PDF Parsing    | PyMuPDF                  |
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏗️ Architecture
 
-Insightify uses a Retrieval-Augmented Generation (RAG) pipeline powered by a large language model (LLM), such as Gemini, to extract context from the uploaded document and generate intelligent outputs.
+1. 🆙 Upload
 
-Flowchart:
+* User uploads a `.pdf` or `.txt` file via the frontend.
+* Text is extracted (PyMuPDF for PDFs, plain read for TXT).
+* Text is split into overlapping chunks using LangChain’s `RecursiveCharacterTextSplitter`.
 
-1. Upload PDF/TXT →
-2. Extract Text →
-3. Chunk + Embed →
-4. Store in FAISS →
-5. Use LLM for:
+2. 🔎 Embedding + Indexing
 
-   * Summary
-   * Q\&A (Ask Anything)
-   * Logic Question Generation & Evaluation (Challenge Me)
+* Each chunk is embedded using Gemini 2.5 Embedding API.
+* FAISS stores the vector index locally.
+* Original chunks are saved in a .pkl metadata file.
 
----
+3. 📄 Summarization
 
-## 🧱 Tech Stack
+* Gemini 2.5 Pro is used to summarize the entire document.
+* Summary is returned to frontend.
 
-| Layer     | Tool/Library                          |
-| --------- | ------------------------------------- |
-| Frontend  | Streamlit                             |
-| Backend   | FastAPI                               |
-| LLM       | Gemini API (or OpenAI/GPT-compatible) |
-| Vector DB | FAISS (or ChromaDB)                   |
-| PDF Parse | PyMuPDF / pdfplumber                  |
-| NLP Tools | LangChain, tiktoken, transformers     |
+4. ❓ Ask Anything
 
----
+* User enters a free-form question.
+* Top relevant chunks are retrieved from FAISS using similarity search.
+* Retrieved context + question is sent to Gemini 2.5 Pro for answer generation.
 
-## 📁 Folder Structure
+5. 🧠 Challenge Me
 
-project-root/
-├── backend/
-│   ├── main.py
-│   ├── routers/
-│   │   ├── upload.py
-│   │   ├── ask.py
-│   │   ├── challenge.py
-│   └── utils/
-│       ├── parser.py
-│       ├── summarizer.py
-│       ├── qa\_engine.py
-│       ├── embedding\_store.py
-├── frontend/
-│   └── app.py (Streamlit interface)
-├── test\_docs/
-│   └── sample\_paper.pdf
-├── requirements.txt
-└── README.md
+* Gemini 2.5 Pro generates 3 inference-heavy logic questions from the document.
+* User inputs answers, which are then evaluated:
+
+  * Gemini generates ideal answers
+  * Compares with user's answers
+  * Assigns score (1–5) and gives feedback
 
 ---
 
-## 🛠️ Setup Instructions
+## 💻 How to Use
 
-Step 1: Clone the repo
+### 1. Clone the Repo & Start Backend
 
 ```bash
-git clone https://github.com/your-username/Insightify.git
-cd Insightify
-```
-
-Step 2: Create and activate a virtual environment
-
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-Step 3: Install dependencies
-
-```bash
+git clone https://github.com/kartikeyp011/Insightify.git
+cd Insightify/backend
+python -m venv myenv
+myenv\Scripts\activate        # or source myenv/bin/activate
 pip install -r requirements.txt
 ```
 
-Step 4: Run the backend server
+➕ Create a `.env` file in backend with:
 
-```bash
-cd backend
-uvicorn main:app --reload
+```
+GEMINI_KEY=your_gemini_api_key
 ```
 
-Step 5: Launch the frontend
+🟢 Start backend server:
+
+```bash
+uvicorn backend.main:app --reload
+```
+
+---
+
+### 2. Start Frontend
 
 ```bash
 cd ../frontend
 streamlit run app.py
 ```
+
+---
+
+### 3. Interact from the Browser
+
+* Upload a document → Get Summary
+* Ask questions → Get answers
+* Challenge Me → Get 3 reasoning questions and feedback
 
 ---
 
@@ -135,21 +127,35 @@ streamlit run app.py
 
 ---
 
-## 🧠 Prompt Engineering (Behind-the-Scenes)
+## 🧪 Example Use Cases
 
-Insightify uses the following prompt patterns:
+* Academic paper comprehension
+* Literary analysis
+* Critical reasoning training
+* Self-evaluation for study
+* Research note summarization
 
-For Q\&A:
+---
 
-> “Given this question and the following document content, answer truthfully and include reference to where it is found in the document…”
+## 📌 Start Commands Summary
 
-For Challenge Generation:
+Backend:
 
-> “From this document, generate three comprehension or logic-based questions that require reasoning…”
+```bash
+uvicorn backend.main:app --reload
+```
 
-For Evaluation:
+Frontend:
 
-> “Evaluate the following answer based on the original content. Is it correct? If not, explain why with reference…”
+```bash
+streamlit run frontend/app.py
+```
+
+---
+
+✔️ Gemini API Key: Available via Google AI Studio (free quota for Gemini 2.5 Pro and embedding).
+
+🧠 Designed for learning, reasoning, and intelligent interaction with research content.
 
 ---
 
