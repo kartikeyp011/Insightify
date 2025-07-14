@@ -1,18 +1,26 @@
+# =========================
+
+# 📁 Python – Backend Ignore
+
+# =========================
+
 # Byte-compiled / optimized / DLL files
 
-**pycache**/
-\*.py\[cod]
+backend/**pycache**/
+backend/\*\*/\*.py\[cod]
 \*\$py.class
 
-# Virtual environment
+# Virtual environments (any location)
 
 .venv/
 venv/
 env/
 ENV/
 .pipenv/
+myenv/
+backend/myenv/
 
-# VSCode config
+# VSCode project settings
 
 .vscode/
 
@@ -20,33 +28,19 @@ ENV/
 
 .env
 .env.\*
+backend/.env
+frontend/.env
 
-# OS files
-
-.DS\_Store
-Thumbs.db
-
-# Logs and local data
+# Logs & runtime artifacts
 
 \*.log
-\*.sqlite3
-\*.db
 \*.pid
+\*.db
+\*.sqlite3
 \*.pkl
 \*.joblib
 
-# Cache & compiled output
-
-.cache/
-\*.ipynb\_checkpoints
-**pycache**/
-\*.egg-info/
-\*.egg/
-\*.manifest
-\*.spec
-\*.out
-
-# Coverage & test
+# Test & coverage
 
 .coverage
 htmlcov/
@@ -55,50 +49,77 @@ htmlcov/
 .pytest\_cache/
 test-results/
 
-# Notebooks
+# Cache & compiled outputs
+
+backend/.cache/
+\*.egg-info/
+\*.egg/
+\*.manifest
+\*.spec
+\*.out
+
+# Jupyter notebooks
 
 \*.ipynb\_checkpoints
 .ipynb\_checkpoints/
 
-# Streamlit-specific
+# Streamlit secrets
 
-.streamlit/secrets.toml
+frontend/.streamlit/secrets.toml
 
-# Document uploads & test data
+# Uploaded files and temp
 
-uploaded\_files/
-test\_docs/
-uploads/
-temp/
+backend/uploaded\_files/
+backend/test\_docs/
+backend/uploads/
+backend/temp/
 \*.pdf
 \*.txt
 
-# Model/Vector stores
+# Vectorstore and model files
 
-models/
-vectorstore/
+backend/models/
+backend/vectorstore/
 \*.faiss
 \*.npz
 \*.pt
 \*.onnx
 
-# Language model outputs
+# Output logs
 
-output/
-summaries/
+backend/output/
+backend/summaries/
 \*.jsonl
 
-# Frontend node\_modules (if applicable)
+# ========================
 
-node\_modules/
+# 📁 Frontend – Streamlit
 
-# Build artifacts
+# ========================
+
+# node modules
+
+frontend/node\_modules/
+
+# Streamlit cache (if any)
+
+frontend/.streamlit/
+
+# ========================
+
+# 🛠️ Build Artifacts
+
+# ========================
 
 build/
 dist/
 \*.egg-info/
 
-# IDE files
+# ========================
+
+# 💻 IDE Configs
+
+# ========================
 
 .idea/
 \*.iml
