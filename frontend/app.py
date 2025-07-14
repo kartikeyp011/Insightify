@@ -4,6 +4,7 @@ import os
 
 # ✅ Constants
 SUMMARY_PATH = "frontend/summary.txt"  # File to store the last summary
+API_URL = "https://insightify-r9pg.onrender.com/api"
 
 # ✅ 1. Configure the Streamlit page
 st.set_page_config(page_title="Smart Research Assistant", layout="wide")
@@ -18,7 +19,6 @@ tab = st.sidebar.radio("Go to", ["📤 Upload Document", "❓ Ask Anything", "�
 
 # ✅ 4. Session state for data persistence
 if "summary" not in st.session_state:
-    # Try loading previous summary from disk
     if os.path.exists(SUMMARY_PATH):
         with open(SUMMARY_PATH, "r", encoding="utf-8") as f:
             st.session_state.summary = f.read()
@@ -40,24 +40,20 @@ if tab == "📤 Upload Document":
     if uploaded_file is not None:
         with st.spinner("⏳ Uploading and processing..."):
             files = {"file": (uploaded_file.name, uploaded_file.read())}
-            response = requests.post("http://localhost:8000/api/upload", files=files)
+            response = requests.post(f"{API_URL}/upload", files=files)
 
         if response.status_code == 200:
             st.success("✅ File uploaded successfully!")
             summary = response.json()["summary"]
             st.session_state.summary = summary
-
-            # Save summary to disk
             with open(SUMMARY_PATH, "w", encoding="utf-8") as f:
                 f.write(summary)
-
             st.subheader("📄 Auto Summary")
             st.markdown(summary)
         else:
             st.error(f"❌ Upload failed: {response.json()['detail']}")
 
     elif st.session_state.summary:
-        # If a summary already exists, show it
         st.subheader("📄 Auto Summary")
         st.markdown(st.session_state.summary)
 
@@ -71,7 +67,7 @@ elif tab == "❓ Ask Anything":
             st.warning("⚠️ Please enter a question.")
         else:
             with st.spinner("🔍 Getting answer from AI..."):
-                response = requests.post("http://localhost:8000/api/ask", json={"question": question})
+                response = requests.post(f"{API_URL}/ask", json={"question": question})
 
             if response.status_code == 200:
                 st.markdown("### ✅ Answer")
@@ -86,7 +82,7 @@ elif tab == "🧠 Challenge Me":
     if not st.session_state.questions:
         if st.button("Generate Challenge Questions"):
             with st.spinner("💡 Generating questions..."):
-                response = requests.get("http://localhost:8000/api/challenge")
+                response = requests.get(f"{API_URL}/challenge")
             if response.status_code == 200:
                 st.session_state.questions = response.json()["questions"]
                 st.session_state.answers = ["", "", ""]
@@ -108,7 +104,7 @@ elif tab == "🧠 Challenge Me":
             if all(ans.strip() for ans in st.session_state.answers):
                 with st.spinner("📝 Evaluating your answers..."):
                     response = requests.post(
-                        "http://localhost:8000/api/evaluate",
+                        f"{API_URL}/evaluate",
                         json={"answers": st.session_state.answers}
                     )
 
