@@ -1,0 +1,119 @@
+{
+	"info": {
+		"_postman_id": "90c8e412-b607-44fb-baf5-89d0a0bf4cbe",
+		"name": "InsightifyAI",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "46731425",
+		"_collection_link": "https://kartikeynarainprajapati.postman.co/workspace/Kartikey-Narain-Prajapati's-Wor~4a89acac-a16b-403e-8dd3-9214cececf43/collection/46731425-90c8e412-b607-44fb-baf5-89d0a0bf4cbe?action=share&source=collection_link&creator=46731425"
+	},
+	"item": [
+		{
+			"name": "POST /api/upload",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "file",
+							"type": "file",
+							"src": "/K:/Internships/EZ - Data Science Intern/Insightify/test_docs/test.txt"
+						}
+					]
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/upload",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"upload"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "POST /api/ask",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n\"question\": \"What is the main argument of the paper?\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/ask",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"ask"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GET /api/challenge",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8000/api/challenge",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"challenge"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "POST /api/evaluate",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n\"answers\": [\r\n\"Answer 1\",\r\n\"Answer 2\",\r\n\"Answer 3\"\r\n]\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/evaluate",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"evaluate"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
