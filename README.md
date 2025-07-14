@@ -79,7 +79,7 @@ Each answer includes a reference (e.g., “as stated in section 2…”) to ensu
 git clone https://github.com/kartikeyp011/Insightify.git
 cd Insightify/backend
 python -m venv myenv
-myenv\Scripts\activate        # or source myenv/bin/activate
+myenv\Scripts\activate
 pip install -r requirements.txt
 ```
 
