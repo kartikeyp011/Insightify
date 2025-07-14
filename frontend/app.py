@@ -1,9 +1,7 @@
 import streamlit as st
 import requests
-import os
 
 # ✅ Constants
-SUMMARY_PATH = "frontend/summary.txt"  # File to store the last summary
 API_URL = "https://insightify-r9pg.onrender.com/api"
 
 # ✅ 1. Configure the Streamlit page
@@ -19,12 +17,7 @@ tab = st.sidebar.radio("Go to", ["📤 Upload Document", "❓ Ask Anything", "�
 
 # ✅ 4. Session state for data persistence
 if "summary" not in st.session_state:
-    if os.path.exists(SUMMARY_PATH):
-        with open(SUMMARY_PATH, "r", encoding="utf-8") as f:
-            st.session_state.summary = f.read()
-    else:
-        st.session_state.summary = None
-
+    st.session_state.summary = None
 if "questions" not in st.session_state:
     st.session_state.questions = []
 if "answers" not in st.session_state:
@@ -44,12 +37,9 @@ if tab == "📤 Upload Document":
 
         if response.status_code == 200:
             st.success("✅ File uploaded successfully!")
-            summary = response.json()["summary"]
-            st.session_state.summary = summary
-            with open(SUMMARY_PATH, "w", encoding="utf-8") as f:
-                f.write(summary)
+            st.session_state.summary = response.json()["summary"]
             st.subheader("📄 Auto Summary")
-            st.markdown(summary)
+            st.markdown(st.session_state.summary)
         else:
             st.error(f"❌ Upload failed: {response.json()['detail']}")
 
