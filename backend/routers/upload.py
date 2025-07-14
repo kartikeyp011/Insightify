@@ -2,10 +2,10 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 
 # Import utility functions for parsing, summarizing, chunking, and embedding
-from backend.utils.parser import extract_text_from_file
-from backend.utils.summarizer import generate_summary
-from backend.utils.chunker import split_text_into_chunks
-from backend.utils.embedder import embed_and_store_chunks
+from utils.parser import extract_text_from_file
+from utils.summarizer import generate_summary
+from utils.chunker import split_text_into_chunks
+from utils.embedder import embed_and_store_chunks
 
 # Initialize FastAPI router
 router = APIRouter()
