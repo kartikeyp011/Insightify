@@ -88,7 +88,7 @@ GEMINI\_KEY=your\_gemini\_api\_key
 Start backend server:
 
 ```bash
-uvicorn backend.main:app --reload
+uvicorn main:app --reload
 ```
 
 ---
@@ -175,7 +175,7 @@ You are an examiner. Compare the following student answers with ideal responses.
 Backend:
 
 ```bash
-uvicorn backend.main:app --reload
+uvicorn main:app --reload
 ```
 
 Frontend:

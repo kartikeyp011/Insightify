@@ -31,7 +31,7 @@ Instructions:
 Answer:
 """
 
-    model = genai.GenerativeModel("gemini-2.5-pro")
+    model = genai.GenerativeModel("gemini-2.0-flash")
     response = model.generate_content(prompt)
     return response.text.strip()
 
@@ -73,21 +73,11 @@ Document:
 \"\"\"
 """
 
-    model = genai.GenerativeModel("gemini-2.5-pro")
+    model = genai.GenerativeModel("gemini-2.0-flash")
     response = model.generate_content(prompt)
 
     print("\n🔍 [DEBUG] Gemini Raw Output:\n", response.text)  # Add this
     return response.text.strip()
-
-import json
-import re
-import google.generativeai as genai
-from dotenv import load_dotenv
-import os
-from utils.qa_engine import load_context  # Make sure load_context is already defined
-
-load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_KEY"))
 
 def evaluate_user_answers(user_answers: list[str]) -> list[dict]:
     """
@@ -127,7 +117,7 @@ Return ONLY a valid JSON list in the format:
     """
 
     # ✅ Call Gemini 2.5 Pro model
-    model = genai.GenerativeModel("gemini-2.5-pro")
+    model = genai.GenerativeModel("gemini-2.0-flash")
     response = model.generate_content(prompt)
     raw_output = response.text.strip()
 

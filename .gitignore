@@ -1,7 +1,5 @@
 # =========================
-
 # 📁 Python – Backend Ignore
-
 # =========================
 
 # Byte-compiled / optimized / DLL files
@@ -92,9 +90,7 @@ backend/summaries/
 \*.jsonl
 
 # ========================
-
 # 📁 Frontend – Streamlit
-
 # ========================
 
 # node modules
@@ -106,9 +102,7 @@ frontend/node\_modules/
 frontend/.streamlit/
 
 # ========================
-
 # 🛠️ Build Artifacts
-
 # ========================
 
 build/
@@ -116,10 +110,12 @@ dist/
 \*.egg-info/
 
 # ========================
-
 # 💻 IDE Configs
-
 # ========================
 
 .idea/
 \*.iml
+
+# NEW
+**/__pycache__/
+test_docs/

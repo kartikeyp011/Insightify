@@ -45,6 +45,8 @@ async def upload_file(file: UploadFile = File(...)):
         summary = generate_summary(text)
 
         # ✅ Step 6: Save raw text to a file (optional: useful for debug or later use)
+        import os
+        os.makedirs("vectorstore", exist_ok=True)
         with open("vectorstore/temp_text.txt", "w", encoding="utf-8") as f:
             f.write(text)
 
