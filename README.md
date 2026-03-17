@@ -4,14 +4,6 @@ Insightify is an AI-powered tool that enables users to upload a research documen
 
 ---
 
-## 📸 Preview
-
-![App Preview 1](preview/insightify1.png)
-![App Preview 2](preview/insightify4.png)
-![App Preview 3](preview/insightify5.png)
-
----
-
 ## 🚀 Features
 
 🔍 Document-Aware Understanding
@@ -200,6 +192,14 @@ streamlit run frontend/app.py
 ✔️ Gemini API Key
 You can get this for free via Google AI Studio:
 [https://makersuite.google.com/](https://makersuite.google.com/)
+
+---
+
+## 📸 Preview
+
+![App Preview 1](preview/insightify1.png)
+![App Preview 2](preview/insightify4.png)
+![App Preview 3](preview/insightify5.png)
 
 ---
 
