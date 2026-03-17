@@ -31,11 +31,12 @@ Instructions:
 Answer:
 """
 
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     response = model.generate_content(prompt)
     return response.text.strip()
 
-CHUNKS_PATH = "vectorstore/chunk_texts.pkl"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CHUNKS_PATH = os.path.join(BASE_DIR, "vectorstore", "chunk_texts.pkl")
 
 def load_context() -> str:
     """
@@ -73,7 +74,7 @@ Document:
 \"\"\"
 """
 
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     response = model.generate_content(prompt)
 
     print("\n🔍 [DEBUG] Gemini Raw Output:\n", response.text)  # Add this
@@ -117,7 +118,7 @@ Return ONLY a valid JSON list in the format:
     """
 
     # ✅ Call Gemini 2.5 Pro model
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     response = model.generate_content(prompt)
     raw_output = response.text.strip()
 

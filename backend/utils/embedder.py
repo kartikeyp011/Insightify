@@ -11,8 +11,9 @@ GEMINI_API_KEY = os.getenv("GEMINI_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 
 # ✅ Paths to store FAISS index and chunk metadata
-INDEX_PATH = "vectorstore/faiss_index"
-META_PATH = "vectorstore/chunk_texts.pkl"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INDEX_PATH = os.path.join(BASE_DIR, "vectorstore", "faiss_index")
+META_PATH = os.path.join(BASE_DIR, "vectorstore", "chunk_texts.pkl")
 
 def embed_and_store_chunks(chunks: list[str]):
     """
@@ -33,7 +34,7 @@ def embed_and_store_chunks(chunks: list[str]):
         try:
             # ✅ Use genai.embed_content (not model.embed_content)
             response = genai.embed_content(
-                model="models/embedding-001",
+                model="models/gemini-embedding-2-preview",
                 content=chunk,
                 task_type="retrieval_document"
             )

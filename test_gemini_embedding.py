@@ -15,7 +15,7 @@ genai.configure(api_key=api_key)
 # ✅ Step 2: Use the global genai.embed_content() function (not model.embed_content)
 try:
     response = genai.embed_content(
-        model="models/embedding-001",
+        model="models/gemini-embedding-2-preview",
         content="This is a test chunk to embed.",
         task_type="retrieval_document"
     )

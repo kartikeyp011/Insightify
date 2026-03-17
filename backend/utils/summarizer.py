@@ -13,7 +13,7 @@ def generate_summary(text: str) -> str:
 
     try:
         # Initialize the Gemini model (text-only)
-        model = genai.GenerativeModel(model_name="models/"gemini-2.0-flash"")
+        model = genai.GenerativeModel(model_name="gemini-2.5-flash")
 
         # Instruction prompt for Gemini
         prompt = (

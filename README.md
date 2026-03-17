@@ -69,35 +69,36 @@ Each answer includes a reference (e.g., “as stated in section 2…”) to ensu
 
 ## 💻 How to Use
 
-### 1. Clone the Repo & Start Backend
+### 1. Clone the Repo & Setup Environment
 
 ```bash
 git clone https://github.com/kartikeyp011/Insightify.git
-cd Insightify/backend
+cd Insightify
 python -m venv myenv
 myenv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-➕ Create a .env file:
+➕ Create a .env file in the project's root folder:
 
 .env
 
 GEMINI\_KEY=your\_gemini\_api\_key
 
-Start backend server:
+Run the backend from the root folder:
 
 ```bash
-uvicorn main:app --reload
+uvicorn backend.main:app --reload
 ```
 
 ---
 
 ### 2. Start Frontend
 
+Run the frontend from the root folder:
+
 ```bash
-cd ../frontend
-streamlit run app.py
+streamlit run frontend/app.py
 ```
 
 ---
@@ -172,10 +173,12 @@ You are an examiner. Compare the following student answers with ideal responses.
 
 ## 📌 Start Commands Summary
 
+All commands should be executed from the **root folder**.
+
 Backend:
 
 ```bash
-uvicorn main:app --reload
+uvicorn backend.main:app --reload
 ```
 
 Frontend:

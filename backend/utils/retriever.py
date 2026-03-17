@@ -9,8 +9,9 @@ import google.generativeai as genai
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_KEY"))
 
-INDEX_PATH = "vectorstore/faiss_index"
-CHUNKS_PATH = "vectorstore/chunk_texts.pkl"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INDEX_PATH = os.path.join(BASE_DIR, "vectorstore", "faiss_index")
+CHUNKS_PATH = os.path.join(BASE_DIR, "vectorstore", "chunk_texts.pkl")
 
 def get_relevant_chunks(query: str, top_k: int = 4) -> list[str]:
     """
@@ -26,7 +27,7 @@ def get_relevant_chunks(query: str, top_k: int = 4) -> list[str]:
 
     # Embed the query
     response = genai.embed_content(
-        model="models/embedding-001",
+        model="models/gemini-embedding-2-preview",
         content=query,
         task_type="retrieval_query"
     )

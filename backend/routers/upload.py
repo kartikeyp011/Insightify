@@ -46,8 +46,10 @@ async def upload_file(file: UploadFile = File(...)):
 
         # ✅ Step 6: Save raw text to a file (optional: useful for debug or later use)
         import os
-        os.makedirs("vectorstore", exist_ok=True)
-        with open("vectorstore/temp_text.txt", "w", encoding="utf-8") as f:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        vectorstore_path = os.path.join(base_dir, "vectorstore")
+        os.makedirs(vectorstore_path, exist_ok=True)
+        with open(os.path.join(vectorstore_path, "temp_text.txt"), "w", encoding="utf-8") as f:
             f.write(text)
 
         # ✅ Step 7: Split the text into overlapping chunks
