@@ -4,6 +4,14 @@ Insightify is an AI-powered tool that enables users to upload a research documen
 
 ---
 
+## 📸 Preview
+
+![App Preview 1](preview/insightify1.png)
+![App Preview 2](preview/insightify4.png)
+![App Preview 3](preview/insightify5.png)
+
+---
+
 ## 🚀 Features
 
 🔍 Document-Aware Understanding
