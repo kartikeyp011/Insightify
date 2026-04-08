@@ -1,24 +1,39 @@
+"""
+Streamlit frontend application for InsightifyAI.
+
+This module provides the user interface for interacting with the InsightifyAI
+FastAPI backend. It handles file uploads, user questions, and the challenge/evaluation
+lifecycle. State is managed via Streamlit's session_state and a local summary file.
+
+Dependencies:
+    - streamlit: For rendering the web UI.
+    - requests: For communicating with the FastAPI backend.
+    - os: For checking the existence of summary files on the local disk.
+"""
+
 import streamlit as st
 import requests
 import os
 
-# ✅ Constants
+# ── Constants ──────────────────────────────────────────────────
+# NOTE: The summary file persists across app restarts so users don't lose context 
+# if they refresh or if the app goes to sleep.
 SUMMARY_PATH = "summary.txt"  # File to store the last summary
 
-# ✅ 1. Configure the Streamlit page
+# ── App Configuration & Layout ─────────────────────────────────
+
 st.set_page_config(page_title="InsightifyAI", layout="wide")
 
-# ✅ 2. Page Header
 st.title("📘InsightifyAI")
 st.markdown("Upload a document and interact with it using AI — ask questions, get challenged, and receive justifications.")
 
-# ✅ 3. Sidebar Navigation
 st.sidebar.title("Navigation")
 tab = st.sidebar.radio("Go to", ["📤 Upload Document", "❓ Ask Anything", "🧠 Challenge Me"])
 
-# ✅ 4. Session state for data persistence
+# ── Session State Management ───────────────────────────────────
+
 if "summary" not in st.session_state:
-    # Try loading previous summary from disk
+    # Try loading previous summary from disk to persist context across reloads
     if os.path.exists(SUMMARY_PATH):
         with open(SUMMARY_PATH, "r", encoding="utf-8") as f:
             st.session_state.summary = f.read()
@@ -32,14 +47,16 @@ if "answers" not in st.session_state:
 if "evaluation" not in st.session_state:
     st.session_state.evaluation = []
 
-# 🔷 5. Tab 1: Upload Document
+# ── Tab 1: Upload Document ─────────────────────────────────────
 if tab == "📤 Upload Document":
     st.header("📤 Upload PDF or TXT File")
     uploaded_file = st.file_uploader("Choose a .pdf or .txt file", type=["pdf", "txt"])
 
     if uploaded_file is not None:
         with st.spinner("⏳ Uploading and processing..."):
+            # Prepare file for multipart/form-data POST request to FastAPI
             files = {"file": (uploaded_file.name, uploaded_file.read())}
+            # TODO(dev): Move hardcoded API URLs to an environment variable or config file
             response = requests.post("http://localhost:8000/api/upload", files=files)
 
         if response.status_code == 200:
@@ -47,7 +64,7 @@ if tab == "📤 Upload Document":
             summary = response.json()["summary"]
             st.session_state.summary = summary
 
-            # Save summary to disk
+            # Cache the summary to disk for retrieval on subsequent app accesses
             with open(SUMMARY_PATH, "w", encoding="utf-8") as f:
                 f.write(summary)
 
@@ -57,11 +74,10 @@ if tab == "📤 Upload Document":
             st.error(f"❌ Upload failed: {response.json()['detail']}")
 
     elif st.session_state.summary:
-        # If a summary already exists, show it
         st.subheader("📄 Auto Summary")
         st.markdown(st.session_state.summary)
 
-# 🔷 6. Tab 2: Ask Anything
+# ── Tab 2: Ask Anything ────────────────────────────────────────
 elif tab == "❓ Ask Anything":
     st.header("❓ Ask Anything About the Document")
     question = st.text_input("Type your question here:")
@@ -79,7 +95,7 @@ elif tab == "❓ Ask Anything":
             else:
                 st.error(f"❌ Error: {response.json()['detail']}")
 
-# 🔷 7. Tab 3: Challenge Me
+# ── Tab 3: Challenge Me ────────────────────────────────────────
 elif tab == "🧠 Challenge Me":
     st.header("🧠 Challenge Yourself on the Document")
 
@@ -87,7 +103,10 @@ elif tab == "🧠 Challenge Me":
         if st.button("Generate Challenge Questions"):
             with st.spinner("💡 Generating questions..."):
                 response = requests.get("http://localhost:8000/api/challenge")
+            
             if response.status_code == 200:
+                # Store generated questions and explicitly reset related state lists 
+                # so previous answers/evaluations are cleared for the new challenge
                 st.session_state.questions = response.json()["questions"]
                 st.session_state.answers = ["", "", ""]
                 st.session_state.evaluation = []
@@ -98,6 +117,7 @@ elif tab == "🧠 Challenge Me":
         st.subheader("📋 Answer the Following Questions")
 
         for i, q in enumerate(st.session_state.questions):
+            # Capture user answers dynamically, mapping the keys securely to the index
             st.session_state.answers[i] = st.text_area(
                 f"Q{i+1}: {q}",
                 value=st.session_state.answers[i],
@@ -105,6 +125,7 @@ elif tab == "🧠 Challenge Me":
             )
 
         if st.button("Submit Answers"):
+            # Ensure every text area has been filled before attempting submission
             if all(ans.strip() for ans in st.session_state.answers):
                 with st.spinner("📝 Evaluating your answers..."):
                     response = requests.post(
@@ -122,6 +143,7 @@ elif tab == "🧠 Challenge Me":
     if st.session_state.evaluation:
         st.subheader("🧾 Evaluation Results")
         for i, fb in enumerate(st.session_state.evaluation):
+            # Fallback to 'N/A'/'?' if keys are mysteriously missing from backend payload
             st.markdown(f"**Q{i+1}:** {fb.get('question', 'N/A')}")
             st.markdown(f"- 🔸 Your Answer: {fb.get('user_answer', 'N/A')}")
             st.markdown(f"- ✅ Ideal Answer: {fb.get('ideal_answer', 'N/A')}")

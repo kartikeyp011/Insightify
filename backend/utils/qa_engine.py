@@ -1,3 +1,23 @@
+"""
+QA generation and evaluation engine utilizing the Gemini LLM.
+
+This module houses the core generative components of the application. It provides
+functions to generate grounded answers to user questions, dynamically devise
+logic/reasoning puzzles based on document context, and intelligently evaluate
+user-submitted answers to those puzzles.
+
+Components:
+    generate_answer: Answers a question based on provided semantic chunks.
+    load_context: Retrieves the entire document text dynamically from FAISS index metadata.
+    generate_logic_questions: Constructs challenges based on context.
+    evaluate_user_answers: Grades and provides feedback for logic challenges.
+
+Dependencies:
+    - google.generativeai: The primary LLM interfacing library.
+    - dotenv, os: Envrionment variable handling for API constraints.
+    - re, json: Used for cleaning and validating LLM output.
+    - pickle: Reads text chunk metadata.
+"""
 import google.generativeai as genai
 from dotenv import load_dotenv
 import os
@@ -5,13 +25,36 @@ import re
 import json
 import pickle
 
+# ── Initialization ───────────────────────────────────────────────
+
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_KEY"))
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CHUNKS_PATH = os.path.join(BASE_DIR, "vectorstore", "chunk_texts.pkl")
+
+# ── Core Operations ──────────────────────────────────────────────
+
 def generate_answer(question: str, context_chunks: list[str]) -> str:
     """
-    Generates a grounded answer using Gemini with justification.
+    Generates a grounded answer with justification using the Gemini LLM.
+
+    This function pieces together retrieved chunks of semantic context 
+    into a structured prompt, forcing the LLM to restrict its answers to 
+    provided knowledge and state its sources logically.
+
+    Args:
+        question (str): The user's query about the document.
+        context_chunks (list[str]): Relevant excerpts retrieved from FAISS.
+
+    Returns:
+        str: The generated response text, complete with internal justification.
+
+    Example:
+        answer = generate_answer("What is the ROI?", ["The ROI is 5%."])
+        # answer => "Based on the text, the ROI is 5%."
     """
+    # Combine individual chunks into a unified string block for prompting
     context = "\n\n".join(context_chunks)
 
     prompt = f"""
@@ -30,29 +73,42 @@ Instructions:
 
 Answer:
 """
-
     model = genai.GenerativeModel("gemini-2.5-flash")
     response = model.generate_content(prompt)
     return response.text.strip()
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CHUNKS_PATH = os.path.join(BASE_DIR, "vectorstore", "chunk_texts.pkl")
-
 def load_context() -> str:
     """
-    Loads all document chunks as a single string context.
+    Loads all document chunks as a single, concatenated string.
+
+    This is necessary for operations that require understanding the entire document
+    holistically (like generating global challenges), rather than answering targeted
+    semantic queries.
+
+    Returns:
+        str: The full text context limited to approximately 20 chunks to prevent context overflow.
+
+    Raises:
+        FileNotFoundError: If the chunk metadata file isn't found.
     """
     if not os.path.exists(CHUNKS_PATH):
         raise FileNotFoundError("No uploaded document found.")
 
     with open(CHUNKS_PATH, "rb") as f:
         chunks = pickle.load(f)
-    return "\n\n".join(chunks[:20])  # limit to ~20 chunks for context
+        
+    # Cap string limit to roughly 20 chunks to avoid standard token limits
+    return "\n\n".join(chunks[:20])
 
 def generate_logic_questions() -> str:
     """
-    Calls Gemini to generate 3 logic-based questions.
-    Returns raw output (unparsed).
+    Asynchronously calls Gemini to generate 3 logic-based questions.
+
+    This compiles the full conversational document context and prompts the LLM
+    to formulate testable inference scenarios based on the data. 
+
+    Returns:
+        str: Raw, unparsed output directly from Gemini.
     """
     context = load_context()
 
@@ -73,23 +129,32 @@ Document:
 {context}
 \"\"\"
 """
-
     model = genai.GenerativeModel("gemini-2.5-flash")
     response = model.generate_content(prompt)
 
-    print("\n🔍 [DEBUG] Gemini Raw Output:\n", response.text)  # Add this
+    # Output to console primarily for backend monitoring and debugging
+    print("\n🔍 [DEBUG] Gemini Raw Output:\n", response.text)
     return response.text.strip()
 
 def evaluate_user_answers(user_answers: list[str]) -> list[dict]:
     """
-    Uses Gemini to evaluate user-submitted answers against ideal ones,
-    and returns score + justification + feedback for each.
-    """
+    Uses Gemini to evaluate user-submitted answers against derived truth.
 
-    # ✅ Load the full document context (joined chunks)
+    This acts as an automatic grading system. It compares the user's answers against
+    the source document, produces an ideal truth answer, computes a relative score,
+    and returns granular feedback structure parsed from an enforced JSON response.
+
+    Args:
+        user_answers (list[str]): The plain text replies provided by the user.
+
+    Returns:
+        list[dict]: A list of objects containing question, truth, score, and feedback details.
+                    If parsing fails, returns a fallback structure encapsulating the raw output.
+    """
+    # Load the full document context to establish ground truth
     context = load_context()
 
-    # ✅ Construct the evaluation prompt
+    # Construct the evaluation prompt enforcing strict schema compliance
     prompt = f"""
 You are an expert tutor evaluating student answers based on a document.
 
@@ -117,15 +182,15 @@ Return ONLY a valid JSON list in the format:
 ]
     """
 
-    # ✅ Call Gemini 2.5 Pro model
+    # Call the fast variant model for cheaper, faster programmatic evaluations
     model = genai.GenerativeModel("gemini-2.5-flash")
     response = model.generate_content(prompt)
     raw_output = response.text.strip()
 
-    # ✅ Remove markdown code block fencing (```json ... ```)
+    # NOTE: Often LLMs output code blocks (e.g. ```json); these must be aggressively cleaned
     cleaned_output = re.sub(r"```json|```", "", raw_output).strip()
 
-    # ✅ Try to parse the cleaned string as JSON
+    # Safely digest string schema to dict; fallback on failure rather than crashing out
     try:
         return json.loads(cleaned_output)
     except Exception as e:

@@ -1,3 +1,20 @@
+"""
+Utility for generating and storing vector embeddings.
+
+This module is responsible for taking raw text chunks, converting them into
+feature vectors using the Gemini Embedding API, and storing both the vectors
+and their spatial index using FAISS for rapid similarity search.
+
+Components:
+    embed_and_store_chunks: Embeds text and populates the FAISS store.
+
+Dependencies:
+    - os, pickle: For file paths and saving text metadata.
+    - numpy: For vector manipulation.
+    - faiss: For creating the similarity search index.
+    - dotenv: To manage environment secrets.
+    - google.generativeai: For actual embedding generation.
+"""
 import os
 import pickle
 import numpy as np
@@ -5,22 +22,38 @@ import faiss
 from dotenv import load_dotenv
 import google.generativeai as genai
 
-# ✅ Load Gemini API Key from .env file
+# ── Initialization ───────────────────────────────────────────────
+
+# Load Gemini API Key from .env file securely
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 
-# ✅ Paths to store FAISS index and chunk metadata
+# Compute absolute paths to correctly resolve vectorstore storage locations
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX_PATH = os.path.join(BASE_DIR, "vectorstore", "faiss_index")
 META_PATH = os.path.join(BASE_DIR, "vectorstore", "chunk_texts.pkl")
 
-def embed_and_store_chunks(chunks: list[str]):
+# ── Embedding Logic ──────────────────────────────────────────────
+
+def embed_and_store_chunks(chunks: list[str]) -> None:
     """
     Embeds a list of text chunks using Gemini and stores them in a FAISS index.
-    Also saves chunk metadata for future reference.
-    """
 
+    This function calls the Gemini Embedding API for each chunk, converting the
+    semantic text into a high-dimensional vector. It creates a FAISS index using
+    L2 distance and stores the raw text locally so context can be retrieved via
+    index alignment.
+
+    Args:
+        chunks (list[str]): The plain text chunks to be embedded.
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If Gemini completely fails and produces 0 vectors.
+    """
     print(f"[INFO] Embedding {len(chunks)} chunks using Gemini...")
 
     vectors = []
@@ -29,37 +62,39 @@ def embed_and_store_chunks(chunks: list[str]):
     for idx, chunk in enumerate(chunks):
         chunk = chunk.strip()
         if not chunk:
-            continue  # Skip empty chunks
+            # Skip iterations where chunk is purely whitespace to prevent API errors
+            continue
 
         try:
-            # ✅ Use genai.embed_content (not model.embed_content)
+            # Generate the embedding using the Gemini API explicitly designated for retrieval
             response = genai.embed_content(
                 model="models/gemini-embedding-2-preview",
                 content=chunk,
                 task_type="retrieval_document"
             )
 
-            # ✅ Append the embedding vector
+            # Append the resulting vector parsed as float32 required by FAISS
             vectors.append(np.array(response['embedding'], dtype='float32'))
             cleaned_chunks.append(chunk)
 
         except Exception as e:
+            # Soft fail so that one bad chunk doesn't crash the entire document pipeline
             print(f"[WARN] Chunk #{idx+1} failed → {e}")
             print("Partial content:", repr(chunk[:100]))
 
-    # ✅ Ensure at least one successful embedding
+    # Ensure at least one successful embedding exists to create a valid index
     if not vectors:
         raise ValueError("[ERROR] Gemini failed to embed all chunks. No vectors created.")
 
-    # ✅ Convert to NumPy array
+    # Convert the list of arrays into a single contiguous multi-dimensional NumPy array
     embeddings_array = np.array(vectors, dtype='float32')
 
-    # ✅ Create FAISS index and add vectors
+    # Create the FAISS similarity index based on vector dimensionality (likely 768)
     dim = embeddings_array.shape[1]
     index = faiss.IndexFlatL2(dim)
     index.add(embeddings_array)
 
-    # ✅ Save FAISS index and chunk metadata
+    # Persist both the FAISS binary index and the original chunk text list
     faiss.write_index(index, INDEX_PATH)
     with open(META_PATH, "wb") as f:
         pickle.dump(cleaned_chunks, f)
