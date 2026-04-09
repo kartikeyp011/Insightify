@@ -63,10 +63,19 @@ async def upload_file(file: UploadFile = File(...)):
         # Step 3: Extract clean text from file bytes based on its format
         text = extract_text_from_file(contents, filename)
 
-        # Step 4: Validate extracted text to ensure subsequent steps don't fail on empty strings
-        if not text or len(text.strip()) == 0:
-            raise HTTPException(status_code=422, detail="Could not extract text from file.")
+    except Exception as e:
+        # Surface fitz/IO errors with a clear message instead of masking them
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {str(e)}")
 
+    # Step 4: Validate extracted text to ensure subsequent steps don't fail on empty strings
+    # This check lives OUTSIDE the broad except so the 422 is never swallowed as a 500
+    if not text or len(text.strip()) == 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not extract text from the PDF. The file may be scanned/image-based with no selectable text."
+        )
+
+    try:
         # Step 5: Generate a short API-driven summary for the frontend
         # NOTE: This uses Gemini behind the scenes.
         summary = generate_summary(text)
@@ -89,5 +98,5 @@ async def upload_file(file: UploadFile = File(...)):
         return JSONResponse(content={"summary": summary}, status_code=200)
 
     except Exception as e:
-        # If anything goes wrong inside the pipeline, return a cleanly surfaced error
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+        # If anything goes wrong in the summarization/embedding pipeline, surface it cleanly
+        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
