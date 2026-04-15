@@ -7,31 +7,61 @@ chunks suitable for generating vector embeddings.
 Dependencies:
     - langchain.text_splitter: Used for robust text tokenization and chunking.
 """
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-
-def split_text_into_chunks(text: str, chunk_size: int = 800, overlap: int = 150) -> list[str]:
+def split_text_into_chunks(text: str, strategy: str = "Large Chunking (1200, overlap 200)") -> list[str]:
     """
-    Breaks a large string of text into smaller, overlapping chunks.
-
-    This function uses LangChain's RecursiveCharacterTextSplitter to ensure chunks
-    are split on natural boundaries (like paragraphs or sentences) while maintaining
-    a specified overlap to prevent loss of context across boundaries.
-
-    Args:
-        text (str): The large body of text to be split.
-        chunk_size (int, optional): The maximum number of characters per chunk. Defaults to 800.
-        overlap (int, optional): The number of characters to overlap between sequential chunks. Defaults to 150.
-
-    Returns:
-        list[str]: A list of text chunks.
-
-    Example:
-        chunks = split_text_into_chunks("A very long text...", chunk_size=500, overlap=50)
-        # chunks => ["A very long...", "long text..."]
+    Breaks a large string of text into smaller chunks based on the specified strategy.
+    
+    Supported Strategies:
+    - Large Chunking (1200, overlap 200)
+    - Sentence Based
+    - Token Based
+    - Paragraph Based
+    - Semantic Chunking
     """
-    # Initialize the LangChain splitter with configured boundaries
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=overlap
-    )
-    return splitter.split_text(text)
+    if strategy == "Large Chunking (1200, overlap 200)":
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=200)
+        return splitter.split_text(text)
+
+    elif strategy == "Sentence Based":
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        # Split on sentence terminals first, then fallback to spaces if huge
+        splitter = RecursiveCharacterTextSplitter(
+            separators=["\n\n", "\n", ". ", "? ", "! ", " "],
+            chunk_size=400,
+            chunk_overlap=50
+        )
+        return splitter.split_text(text)
+
+    elif strategy == "Token Based":
+        from langchain_text_splitters import TokenTextSplitter
+        # Uses tiktoken underneath (default cl100k_base or gpt2)
+        splitter = TokenTextSplitter(chunk_size=150, chunk_overlap=20)
+        return splitter.split_text(text)
+
+    elif strategy == "Paragraph Based":
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        splitter = RecursiveCharacterTextSplitter(
+            separators=["\n\n", "\n"],
+            chunk_size=800,
+            chunk_overlap=100
+        )
+        return splitter.split_text(text)
+
+    elif strategy == "Semantic Chunking":
+        from langchain_experimental.text_splitter import SemanticChunker
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+        
+        # Initialize an explicit embedding model for sentence boundaries
+        print("[CHUNKER] Initializing HuggingFace Embeddings for Semantic Chunking...")
+        embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-base-en-v1.5")
+        
+        # Split semantically by grouping sentences with high cosine similarity
+        splitter = SemanticChunker(embeddings, breakpoint_threshold_type="percentile")
+        return splitter.split_text(text)
+
+    else:
+        # Fallback
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=75)
+        return splitter.split_text(text)

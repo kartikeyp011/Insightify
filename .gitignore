@@ -119,3 +119,12 @@ dist/
 # NEW
 **/__pycache__/
 test_docs/
+
+
+# MODELS
+models--BAAI--bge-base-en-v1.5/
+CACHEDIR.TAG
+combinatorics_test_results.txt
+gemini_model_names.py
+models--BAAI--bge-base-en-v1.5/
+models--sentence-transformers--all-MiniLM-L6-v2/

@@ -3,7 +3,10 @@ Router for handling document uploads and ingestion.
 
 This module provides the API endpoint to ingest PDF or TXT files, extract
 and chunk the text, generate embeddings via the Gemini Embedding API, and
-store them in a FAISS vector database.
+store them in a FAISS vector database. It also accepts optional model
+configuration parameters (mode, llm_choice, embedding_choice) and persists
+them via the model_config manager so downstream components can adapt their
+behaviour accordingly.
 
 Components:
     upload_file: API endpoint to handle the file upload and processing pipeline.
@@ -14,8 +17,9 @@ Dependencies:
     - utils.summarizer: To briefly summarize the parsed text.
     - utils.chunker: To divide text into semantic parts.
     - utils.embedder: To convert text into vector representations.
+    - utils.model_config: To persist the user's model/embedding selection.
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 
 # Import utility functions for parsing, summarizing, chunking, and embedding
@@ -23,6 +27,7 @@ from utils.parser import extract_text_from_file
 from utils.summarizer import generate_summary
 from utils.chunker import split_text_into_chunks
 from utils.embedder import embed_and_store_chunks
+from utils.model_config import set_config
 
 # Initialize FastAPI router
 router = APIRouter()
@@ -30,7 +35,13 @@ router = APIRouter()
 # ── Endpoints ────────────────────────────────────────────────────
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    mode: str = Form(default=""),
+    llm_choice: str = Form(default=""),
+    embedding_choice: str = Form(default=""),
+    chunking_strategy: str = Form(default="Large Chunking (1200, overlap 200)"),
+):
     """
     Asynchronously handles file uploads (PDF/TXT), processes text, and populates vectorstore.
 
@@ -38,11 +49,21 @@ async def upload_file(file: UploadFile = File(...)):
     generates a short summary, splits everything into chunks, computes embeddings
     using Gemini, and stores the vectors in a local FAISS index for retrieval.
 
+    It also accepts optional model configuration form fields (mode, llm_choice,
+    embedding_choice). When present and valid, these are persisted via set_config()
+    so that downstream components (qa_engine, retriever, embedder) can branch on
+    the active model. Fields are silently ignored if absent or empty to preserve
+    backward compatibility with older clients.
+
     Args:
         file (UploadFile): The uploaded file, constrained to .pdf or .txt formats.
+        mode (str): Optional. Inference mode — "local" or "external".
+        llm_choice (str): Optional. LLM model name (required when mode is "local").
+        embedding_choice (str): Optional. Embedding model name (required when mode is "local").
 
     Returns:
-        JSONResponse: An object containing a short text summary under the "summary" key.
+        JSONResponse: An object containing a short text summary under the "summary" key,
+            plus a "config" sub-object echoing back the persisted model configuration.
 
     Raises:
         HTTPException:
@@ -51,6 +72,22 @@ async def upload_file(file: UploadFile = File(...)):
             - 500 if an unexpected error occurs during processing.
     """
     filename = file.filename
+
+    # ── Model Configuration ──────────────────────────────────────
+    # Persist the user's model/embedding selection when valid values are supplied.
+    # Fields arrive as empty strings when the frontend sends no selection, so we
+    # treat "" the same as absent to preserve full backward compatibility.
+    if mode:  # non-empty string means the user explicitly chose something
+        try:
+            set_config(
+                mode=mode,
+                llm_choice=llm_choice or None,
+                embedding_choice=embedding_choice or None,
+            )
+        except ValueError as exc:
+            # Invalid option values — surface as a 400 rather than crashing the
+            # whole upload. The file processing pipeline still runs below.
+            raise HTTPException(status_code=400, detail=f"Invalid model config: {exc}")
 
     # Step 1: Check if file is a PDF or TXT to prevent unhandled media types
     if not (filename.endswith(".pdf") or filename.endswith(".txt")):
@@ -89,13 +126,17 @@ async def upload_file(file: UploadFile = File(...)):
             f.write(text)
 
         # Step 7: Split the text into overlapping chunks to maintain semantic context
-        chunks = split_text_into_chunks(text)
+        chunks = split_text_into_chunks(text, strategy=chunking_strategy)
 
         # Step 8: Use Gemini Embedding API to create vector embeddings & save to FAISS
         embed_and_store_chunks(chunks)
 
-        # Step 9: Return generated summary as response
-        return JSONResponse(content={"summary": summary}, status_code=200)
+        # Step 9: Return generated summary plus the active config as response
+        from utils.model_config import get_config
+        return JSONResponse(
+            content={"summary": summary, "config": get_config()},
+            status_code=200,
+        )
 
     except Exception as e:
         # If anything goes wrong in the summarization/embedding pipeline, surface it cleanly

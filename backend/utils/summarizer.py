@@ -11,6 +11,10 @@ import os
 import google.generativeai as genai
 from dotenv import load_dotenv
 
+from utils.model_config import get_config
+from utils.llm_providers import generate_text
+from utils.local_llm import generate_local_text
+
 # Initialize the Gemini connection for operations across the summarizer module
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_KEY"))
@@ -33,9 +37,6 @@ def generate_summary(text: str) -> str:
         # summary => "The report highlights a Q3 growth..."
     """
     try:
-        # Utilize the flash model to optimize summarization latency constraints
-        model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-
         # Instruction prompt ensuring token limitation compliance from Gemini
         prompt = (
             "Summarize the following document in 150 words or less. "
@@ -43,7 +44,15 @@ def generate_summary(text: str) -> str:
             f"{text}"
         )
 
-        # Await sync resolution of the request
+        cfg = get_config()
+        if cfg["mode"] == "external":
+            return generate_text(prompt)
+        elif cfg["mode"] == "local":
+            print(f"[LOCAL-LLM] generate_summary using local model: {cfg['llm_choice']}")
+            return generate_local_text(prompt, cfg["llm_choice"])
+
+        # Default fallback to direct Gemini
+        model = genai.GenerativeModel(model_name="gemini-flash-latest")
         response = model.generate_content(prompt)
 
         return response.text.strip()

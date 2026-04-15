@@ -1,9 +1,15 @@
 """
-Utility for querying and retrieving semantic vectors from a FAISS index.
+Utility for querying and retrieving semantic vectors from a FAISS index,
+with external provider fallback support.
 
 This module acts as the search bridge between a user's plain-text query and
 the numerical embeddings stored locally. It embeds the live query and executes
 an L2 distance search across the index space.
+
+All query embedding branches on the global config mode at runtime:
+  - ``"external"`` → ``embedding_providers.embed_text()`` (Gemini → Together AI → HF)
+  - ``"local"``    → ``local_embedder.generate_local_embedding()`` (sentence-transformers)
+  - default / None → direct Gemini Embedding API call (original behaviour)
 
 Components:
     get_relevant_chunks: Primary interface for document retrieval.
@@ -12,7 +18,10 @@ Dependencies:
     - numpy: Handles the raw vector layout.
     - pickle: For reading associated textual metadata linked to indices.
     - faiss: For executing the nearest neighbors lookup.
-    - google.generativeai: Used to compute embeddings for incoming queries.
+    - google.generativeai: Direct Gemini query embedding (default mode).
+    - utils.embedding_providers: Fallback-aware dispatcher (external mode).
+    - utils.local_embedder: sentence-transformers dispatcher (local mode).
+    - utils.model_config: Reads the active inference mode and model selection.
 """
 import numpy as np
 import pickle
@@ -20,6 +29,10 @@ import faiss
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
+
+from utils.model_config import get_config
+from utils.embedding_providers import embed_text
+from utils.local_embedder import generate_local_embedding
 
 # ── Initialization ───────────────────────────────────────────────
 
@@ -56,7 +69,7 @@ def get_relevant_chunks(query: str, top_k: int = 4) -> list[str]:
         excerpts = get_relevant_chunks("What is the conclusion?", top_k=2)
         # excerpts => ["Conclusion: Context A...", "Summary: Context B..."]
     """
-    # ── Database Verification ──────────────────────────────────
+    # ── Database Verification ───────────────────────────────────
     if not os.path.exists(INDEX_PATH) or not os.path.exists(CHUNKS_PATH):
         raise FileNotFoundError("Vector store not found.")
 
@@ -65,15 +78,29 @@ def get_relevant_chunks(query: str, top_k: int = 4) -> list[str]:
     with open(CHUNKS_PATH, "rb") as f:
         all_chunks = pickle.load(f)
 
-    # ── Vectorization ──────────────────────────────────────────
-    response = genai.embed_content(
-        model="models/gemini-embedding-2-preview",
-        content=query,
-        task_type="retrieval_query"
-    )
-    
-    # Needs to be reshaped to conform to FAISS search expectations [1, 768]
-    query_vector = np.array(response['embedding'], dtype='float32').reshape(1, -1)
+    # ── Vectorization ───────────────────────────────────────────
+    cfg = get_config()
+    mode = cfg["mode"]
+    embedding_model = cfg.get("embedding_choice")  # Only set when mode == "local"
+
+    if mode == "external":
+        # ── External mode: fallback chain (Gemini → Together AI → HF) ──
+        raw_vector = embed_text(query, task="query")
+        query_vector = np.array(raw_vector, dtype="float32").reshape(1, -1)
+    elif mode == "local":
+        # ── Local mode: sentence-transformers (model from config) ────────
+        print(f"[LOCAL-EMBED] get_relevant_chunks using local model: {embedding_model}")
+        raw_vector = generate_local_embedding(query, embedding_model, task="query")
+        query_vector = np.array(raw_vector, dtype="float32").reshape(1, -1)
+    else:
+        # ── Default: direct Gemini Embedding API call ────────────────────
+        response = genai.embed_content(
+            model="models/gemini-embedding-2-preview",
+            content=query,
+            task_type="retrieval_query",
+        )
+        # Needs to be reshaped to conform to FAISS search expectations [1, 768]
+        query_vector = np.array(response["embedding"], dtype="float32").reshape(1, -1)
 
     # ── Searching ──────────────────────────────────────────────
     # Distances provide score magnitude; indices locate actual string mappings

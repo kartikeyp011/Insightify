@@ -1,10 +1,15 @@
 """
-QA generation and evaluation engine utilizing the Gemini LLM.
+QA generation and evaluation engine with multi-mode provider support.
 
 This module houses the core generative components of the application. It provides
 functions to generate grounded answers to user questions, dynamically devise
 logic/reasoning puzzles based on document context, and intelligently evaluate
 user-submitted answers to those puzzles.
+
+All LLM calls branch on the global config mode at runtime:
+  - ``"external"`` → ``llm_providers.generate_text()`` (Gemini → Groq → OpenRouter)
+  - ``"local"``    → ``local_llm.generate_local_text()`` (Ollama, model from config)
+  - default / None → direct Gemini API call (original behaviour)
 
 Components:
     generate_answer: Answers a question based on provided semantic chunks.
@@ -13,8 +18,11 @@ Components:
     evaluate_user_answers: Grades and provides feedback for logic challenges.
 
 Dependencies:
-    - google.generativeai: The primary LLM interfacing library.
-    - dotenv, os: Envrionment variable handling for API constraints.
+    - google.generativeai: Direct Gemini LLM calls (default mode).
+    - utils.llm_providers: Fallback-aware dispatcher (external mode).
+    - utils.local_llm: Ollama-based local inference (local mode).
+    - utils.model_config: Reads the active inference mode and model selection.
+    - dotenv, os: Environment variable handling.
     - re, json: Used for cleaning and validating LLM output.
     - pickle: Reads text chunk metadata.
 """
@@ -24,6 +32,10 @@ import os
 import re
 import json
 import pickle
+
+from utils.model_config import get_config
+from utils.llm_providers import generate_text
+from utils.local_llm import generate_local_text
 
 # ── Initialization ───────────────────────────────────────────────
 
@@ -73,7 +85,19 @@ Instructions:
 
 Answer:
 """
-    model = genai.GenerativeModel("gemini-2.5-flash")
+
+    # ── Provider dispatch ──────────────────────────────────────
+    cfg = get_config()
+    if cfg["mode"] == "external":
+        # Fallback chain: Gemini → Groq → OpenRouter
+        return generate_text(prompt)
+    elif cfg["mode"] == "local":
+        # Route to locally-running Ollama model chosen by the user
+        print(f"[LOCAL-LLM] generate_answer using local model: {cfg['llm_choice']}")
+        return generate_local_text(prompt, cfg["llm_choice"])
+
+    # Default: direct Gemini call (mode not yet set)
+    model = genai.GenerativeModel("gemini-flash-latest")
     response = model.generate_content(prompt)
     return response.text.strip()
 
@@ -129,11 +153,22 @@ Document:
 {context}
 \"\"\"
 """
-    model = genai.GenerativeModel("gemini-2.5-flash")
-    response = model.generate_content(prompt)
+    # ── Provider dispatch ──────────────────────────────────────
+    cfg = get_config()
+    if cfg["mode"] == "external":
+        result = generate_text(prompt)
+        print("\n[DEBUG] LLM Raw Output:\n", result)
+        return result
+    elif cfg["mode"] == "local":
+        print(f"[LOCAL-LLM] generate_logic_questions using local model: {cfg['llm_choice']}")
+        result = generate_local_text(prompt, cfg["llm_choice"])
+        print("\n[DEBUG] Local LLM Raw Output:\n", result)
+        return result
 
-    # Output to console primarily for backend monitoring and debugging
-    print("\n🔍 [DEBUG] Gemini Raw Output:\n", response.text)
+    # Default: direct Gemini call
+    model = genai.GenerativeModel("gemini-flash-latest")
+    response = model.generate_content(prompt)
+    print("\n[DEBUG] Gemini Raw Output:\n", response.text)
     return response.text.strip()
 
 def evaluate_user_answers(user_answers: list[str]) -> list[dict]:
@@ -182,10 +217,18 @@ Return ONLY a valid JSON list in the format:
 ]
     """
 
-    # Call the fast variant model for cheaper, faster programmatic evaluations
-    model = genai.GenerativeModel("gemini-2.5-flash")
-    response = model.generate_content(prompt)
-    raw_output = response.text.strip()
+    # ── Provider dispatch ──────────────────────────────────────
+    cfg = get_config()
+    if cfg["mode"] == "external":
+        raw_output = generate_text(prompt)
+    elif cfg["mode"] == "local":
+        print(f"[LOCAL-LLM] evaluate_user_answers using local model: {cfg['llm_choice']}")
+        raw_output = generate_local_text(prompt, cfg["llm_choice"])
+    else:
+        # Default: direct Gemini call
+        model = genai.GenerativeModel("gemini-flash-latest")
+        response = model.generate_content(prompt)
+        raw_output = response.text.strip()
 
     # NOTE: Often LLMs output code blocks (e.g. ```json); these must be aggressively cleaned
     cleaned_output = re.sub(r"```json|```", "", raw_output).strip()
@@ -195,7 +238,7 @@ Return ONLY a valid JSON list in the format:
         return json.loads(cleaned_output)
     except Exception as e:
         return [{
-            "error": "Failed to parse Gemini response",
+            "error": "Failed to parse LLM response",
             "exception": str(e),
             "raw_output": cleaned_output
         }]

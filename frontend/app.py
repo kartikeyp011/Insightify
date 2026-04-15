@@ -15,11 +15,6 @@ import streamlit as st
 import requests
 import os
 
-# ── Constants ──────────────────────────────────────────────────
-# NOTE: The summary file persists across app restarts so users don't lose context 
-# if they refresh or if the app goes to sleep.
-SUMMARY_PATH = "summary.txt"  # File to store the last summary
-
 # ── App Configuration & Layout ─────────────────────────────────
 
 st.set_page_config(page_title="InsightifyAI", layout="wide")
@@ -32,14 +27,6 @@ tab = st.sidebar.radio("Go to", ["📤 Upload Document", "❓ Ask Anything", "�
 
 # ── Session State Management ───────────────────────────────────
 
-if "summary" not in st.session_state:
-    # Try loading previous summary from disk to persist context across reloads
-    if os.path.exists(SUMMARY_PATH):
-        with open(SUMMARY_PATH, "r", encoding="utf-8") as f:
-            st.session_state.summary = f.read()
-    else:
-        st.session_state.summary = None
-
 if "questions" not in st.session_state:
     st.session_state.questions = []
 if "answers" not in st.session_state:
@@ -47,35 +34,125 @@ if "answers" not in st.session_state:
 if "evaluation" not in st.session_state:
     st.session_state.evaluation = []
 
+# Model / embedding selection state
+if "mode" not in st.session_state:
+    st.session_state.mode = None          # "Local Models" | "External APIs"
+if "llm_choice" not in st.session_state:
+    st.session_state.llm_choice = None    # Selected LLM name (local mode only)
+if "embedding_choice" not in st.session_state:
+    st.session_state.embedding_choice = None  # Selected embedding model (local mode only)
+
 # ── Tab 1: Upload Document ─────────────────────────────────────
 if tab == "📤 Upload Document":
+    st.header("⚙️ Choose Your AI Configuration")
+
+    # Mode selector — radio renders immediately without a submit button
+    mode = st.radio(
+        "Select inference mode:",
+        options=["Local Models", "External APIs"],
+        index=0 if st.session_state.mode != "External APIs" else 1,
+        horizontal=True,
+        key="mode_radio",
+    )
+    st.session_state.mode = mode
+
+    # Chunking strategy selector available for ALL modes (Local or External)
+    chunking_options = [
+        "Large Chunking (1200, overlap 200)",
+        "Sentence Based",
+        "Token Based",
+        "Paragraph Based",
+        "Semantic Chunking"
+    ]
+    if "chunking_strategy" not in st.session_state:
+        st.session_state.chunking_strategy = chunking_options[0]
+        
+    st.session_state.chunking_strategy = st.selectbox(
+        "🔪 Chunking Strategy",
+        options=chunking_options,
+        index=chunking_options.index(st.session_state.chunking_strategy) if st.session_state.chunking_strategy in chunking_options else 0,
+    )
+
+    if mode == "Local Models":
+        col1, col2 = st.columns(2)
+
+        with col1:
+            llm_options = ["Phi-3 Mini", "Gemma 2B", "DeepSeek R1", "SmolLM2"]
+            llm_default = (
+                llm_options.index(st.session_state.llm_choice)
+                if st.session_state.llm_choice in llm_options
+                else 0
+            )
+            st.session_state.llm_choice = st.selectbox(
+                "🧠 LLM Model",
+                options=llm_options,
+                index=llm_default,
+                key="llm_selectbox",
+            )
+
+        with col2:
+            emb_options = ["BGE-base", "all-MiniLM-L6-v2", "e5-base"]
+            emb_default = (
+                emb_options.index(st.session_state.embedding_choice)
+                if st.session_state.embedding_choice in emb_options
+                else 0
+            )
+            st.session_state.embedding_choice = st.selectbox(
+                "📐 Embedding Model",
+                options=emb_options,
+                index=emb_default,
+                key="embedding_selectbox",
+            )
+
+        st.info(
+            f"✅ **Configuration saved** — LLM: `{st.session_state.llm_choice}` | "
+            f"Embeddings: `{st.session_state.embedding_choice}`"
+        )
+
+    else:  # External APIs
+        # Clear local model selections when switching to external mode
+        st.session_state.llm_choice = None
+        st.session_state.embedding_choice = None
+        st.info("🌐 **External APIs mode selected.** Model selection is handled server-side.")
+
+    st.divider()
+
     st.header("📤 Upload PDF or TXT File")
     uploaded_file = st.file_uploader("Choose a .pdf or .txt file", type=["pdf", "txt"])
 
     if uploaded_file is not None:
-        with st.spinner("⏳ Uploading and processing..."):
-            # Prepare file for multipart/form-data POST request to FastAPI
-            files = {"file": (uploaded_file.name, uploaded_file.read())}
-            # TODO(dev): Move hardcoded API URLs to an environment variable or config file
-            response = requests.post("http://localhost:8000/api/upload", files=files)
+        if st.button("Process Document"):
+            with st.spinner("⏳ Uploading and processing..."):
+                # Prepare file for multipart/form-data POST request to FastAPI
+                files = {"file": (uploaded_file.name, uploaded_file.read())}
 
-        if response.status_code == 200:
-            st.success("✅ File uploaded successfully!")
-            summary = response.json()["summary"]
-            st.session_state.summary = summary
+                # Bundle the model-config selections as additional form fields.
+                # None values are sent as empty strings so the field is always
+                # present; the backend treats "" the same as absent.
+                backend_mode = "local" if st.session_state.mode == "Local Models" else "external"
+                data = {
+                    "mode": backend_mode,
+                    "llm_choice": st.session_state.llm_choice or "",
+                    "embedding_choice": st.session_state.embedding_choice or "",
+                    "chunking_strategy": st.session_state.chunking_strategy or "",
+                }
+                response = requests.post(
+                    "http://localhost:8000/api/upload",
+                    files=files,
+                    data=data,
+                )
 
-            # Cache the summary to disk for retrieval on subsequent app accesses
-            with open(SUMMARY_PATH, "w", encoding="utf-8") as f:
-                f.write(summary)
+            if response.status_code == 200:
+                st.success("✅ File uploaded successfully!")
+                summary = response.json().get("summary")
 
-            st.subheader("📄 Auto Summary")
-            st.markdown(summary)
-        else:
-            st.error(f"❌ Upload failed: {response.json()['detail']}")
-
-    elif st.session_state.summary:
-        st.subheader("📄 Auto Summary")
-        st.markdown(st.session_state.summary)
+                if summary is not None:
+                    st.subheader("📄 Auto Summary")
+                    st.markdown(summary)
+                else:
+                    st.error("❌ No summary returned from backend.")
+            else:
+                st.error(f"❌ Upload failed: {response.json().get('detail', 'Unknown error')}")
 
 # ── Tab 2: Ask Anything ────────────────────────────────────────
 elif tab == "❓ Ask Anything":

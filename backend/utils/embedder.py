@@ -1,9 +1,14 @@
 """
-Utility for generating and storing vector embeddings.
+Utility for generating and storing vector embeddings with provider fallback.
 
 This module is responsible for taking raw text chunks, converting them into
-feature vectors using the Gemini Embedding API, and storing both the vectors
-and their spatial index using FAISS for rapid similarity search.
+feature vectors, and storing both the vectors and their spatial index using
+FAISS for rapid similarity search.
+
+All embedding generation branches on the global config mode at runtime:
+  - ``"external"`` → ``embedding_providers.embed_text()`` (Gemini → Together AI → HF)
+  - ``"local"``    → ``local_embedder.generate_local_embedding()`` (sentence-transformers)
+  - default / None → direct Gemini Embedding API call (original behaviour)
 
 Components:
     embed_and_store_chunks: Embeds text and populates the FAISS store.
@@ -13,7 +18,10 @@ Dependencies:
     - numpy: For vector manipulation.
     - faiss: For creating the similarity search index.
     - dotenv: To manage environment secrets.
-    - google.generativeai: For actual embedding generation.
+    - google.generativeai: Direct Gemini embedding (default mode).
+    - utils.embedding_providers: Fallback-aware dispatcher (external mode).
+    - utils.local_embedder: sentence-transformers dispatcher (local mode).
+    - utils.model_config: Reads the active inference mode and model selection.
 """
 import os
 import pickle
@@ -21,6 +29,10 @@ import numpy as np
 import faiss
 from dotenv import load_dotenv
 import google.generativeai as genai
+
+from utils.model_config import get_config
+from utils.embedding_providers import embed_text
+from utils.local_embedder import generate_local_embedding
 
 # ── Initialization ───────────────────────────────────────────────
 
@@ -54,10 +66,18 @@ def embed_and_store_chunks(chunks: list[str]) -> None:
     Raises:
         ValueError: If Gemini completely fails and produces 0 vectors.
     """
-    print(f"[INFO] Embedding {len(chunks)} chunks using Gemini...")
+    print(f"[INFO] Embedding {len(chunks)} chunks...")
 
     vectors = []
     cleaned_chunks = []
+
+    # Resolve the active mode once before the loop to avoid redundant config reads
+    cfg = get_config()
+    mode = cfg["mode"]
+    embedding_model = cfg.get("embedding_choice")  # Only set when mode == "local"
+
+    if mode == "local":
+        print(f"[LOCAL-EMBED] embed_and_store_chunks using local model: {embedding_model}")
 
     for idx, chunk in enumerate(chunks):
         chunk = chunk.strip()
@@ -66,15 +86,25 @@ def embed_and_store_chunks(chunks: list[str]) -> None:
             continue
 
         try:
-            # Generate the embedding using the Gemini API explicitly designated for retrieval
-            response = genai.embed_content(
-                model="models/gemini-embedding-2-preview",
-                content=chunk,
-                task_type="retrieval_document"
-            )
+            if mode == "external":
+                # ── External mode: fallback chain (Gemini → Together AI → HF) ──
+                vector = embed_text(chunk, task="document")
+                vectors.append(np.array(vector, dtype="float32"))
+            elif mode == "local":
+                # ── Local mode: sentence-transformers (model from config) ──────
+                vector = generate_local_embedding(chunk, embedding_model, task="document")
+                vectors.append(np.array(vector, dtype="float32"))
+            else:
+                # ── Default: direct Gemini Embedding API call ────────────────
+                # Generate the embedding using the Gemini API explicitly designated for retrieval
+                response = genai.embed_content(
+                    model="models/gemini-embedding-2-preview",
+                    content=chunk,
+                    task_type="retrieval_document",
+                )
+                # Append the resulting vector parsed as float32 required by FAISS
+                vectors.append(np.array(response["embedding"], dtype="float32"))
 
-            # Append the resulting vector parsed as float32 required by FAISS
-            vectors.append(np.array(response['embedding'], dtype='float32'))
             cleaned_chunks.append(chunk)
 
         except Exception as e:
@@ -84,10 +114,10 @@ def embed_and_store_chunks(chunks: list[str]) -> None:
 
     # Ensure at least one successful embedding exists to create a valid index
     if not vectors:
-        raise ValueError("[ERROR] Gemini failed to embed all chunks. No vectors created.")
+        raise ValueError("[ERROR] Failed to embed all chunks. No vectors created.")
 
     # Convert the list of arrays into a single contiguous multi-dimensional NumPy array
-    embeddings_array = np.array(vectors, dtype='float32')
+    embeddings_array = np.array(vectors, dtype="float32")
 
     # Create the FAISS similarity index based on vector dimensionality (likely 768)
     dim = embeddings_array.shape[1]
