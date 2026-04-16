@@ -47,6 +47,9 @@ It's the perfect companion for students, researchers, and professionals who need
 | **🧾 Justified Answers** | All AI responses include pinpoint references to the source material (e.g., "based on the uploaded text..."), ensuring high trust and transparency. |
 | **🧠 Challenge Me Mode** | Triggers the AI to act as a university professor, generating three logic-heavy, reasoning-based questions specific to the document's nuances. |
 | **🎯 Evaluation Engine** | Submit your answers to the challenge questions. Insightify compares your logic against the ideal response, providing a score (1-5) and constructive feedback. |
+| **⚙️ Custom Chunking** | Select from various text chunking strategies (Semantic, Token, Sentence, etc.) directly in the UI to optimize document retrieval performance. |
+| **🤖 Model Selection** | Flexible inference options allowing you to select between local models or external API providers for LLM generation and embeddings. |
+| **👁️ OCR Support** | Enhanced extraction pipeline equipped with OCR, enabling the system to effortlessly extract and process text from scanned documents and images. |
 
 ---
 
@@ -157,7 +160,7 @@ Insightify comes with a decoupled backend, meaning you can integrate its documen
 
 ### Main Endpoints:
 
-- `POST /api/upload`: Uploads a `.pdf` or `.txt` file, extracts text, generates embeddings, stores them in FAISS, and returns a document summary.
+- `POST /api/upload`: Uploads a `.pdf` or `.txt` file (with OCR support for scanned documents), applies configured chunking strategies, extracts text, generates embeddings with the selected model, stores them in FAISS, and returns a document summary.
 - `POST /api/ask`: Accepts a user query, performs vector search against the document index, and returns a context-justified LLM response.
 - `GET  /api/challenge`: Generates 3 logic-based questions based on the uploaded material context.
 - `POST /api/evaluate`: Takes the generated questions and the user's answers, evaluates them, and returns a score-card with ideal answers and feedback.
