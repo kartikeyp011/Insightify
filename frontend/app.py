@@ -15,6 +15,8 @@ import streamlit as st
 import requests
 import os
 
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+
 # ── App Configuration & Layout ─────────────────────────────────
 
 st.set_page_config(page_title="InsightifyAI", layout="wide")
@@ -137,7 +139,7 @@ if tab == "📤 Upload Document":
                     "chunking_strategy": st.session_state.chunking_strategy or "",
                 }
                 response = requests.post(
-                    "http://localhost:8000/api/upload",
+                    f"{BACKEND_URL}/api/upload",
                     files=files,
                     data=data,
                 )
@@ -164,7 +166,7 @@ elif tab == "❓ Ask Anything":
             st.warning("⚠️ Please enter a question.")
         else:
             with st.spinner("🔍 Getting answer from AI..."):
-                response = requests.post("http://localhost:8000/api/ask", json={"question": question})
+                response = requests.post(f"{BACKEND_URL}/api/ask", json={"question": question})
 
             if response.status_code == 200:
                 st.markdown("### ✅ Answer")
@@ -179,7 +181,7 @@ elif tab == "🧠 Challenge Me":
     if not st.session_state.questions:
         if st.button("Generate Challenge Questions"):
             with st.spinner("💡 Generating questions..."):
-                response = requests.get("http://localhost:8000/api/challenge")
+                response = requests.get(f"{BACKEND_URL}/api/challenge")
             
             if response.status_code == 200:
                 # Store generated questions and explicitly reset related state lists 
@@ -206,7 +208,7 @@ elif tab == "🧠 Challenge Me":
             if all(ans.strip() for ans in st.session_state.answers):
                 with st.spinner("📝 Evaluating your answers..."):
                     response = requests.post(
-                        "http://localhost:8000/api/evaluate",
+                        f"{BACKEND_URL}/api/evaluate",
                         json={"answers": st.session_state.answers}
                     )
 
