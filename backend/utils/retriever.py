@@ -48,16 +48,12 @@ def get_session_paths(session_id: str):
 def get_relevant_chunks(query: str, session_id: str = None, top_k: int = 4, api_key: str = None) -> list[str]:
     """
     Embeds the user query and retrieves conceptually similar chunks from FAISS.
+
+    Example:
+        excerpts = get_relevant_chunks("What is the conclusion?", session_id="abc", top_k=2)
     """
     if not session_id:
         raise ValueError("session_id must be provided to retrieve embeddings.")
-
-
-
-    Example:
-        excerpts = get_relevant_chunks("What is the conclusion?", top_k=2)
-        # excerpts => ["Conclusion: Context A...", "Summary: Context B..."]
-    """
     # ── Database Verification ───────────────────────────────────
     index_path, meta_path = get_session_paths(session_id)
     if not os.path.exists(index_path) or not os.path.exists(meta_path):

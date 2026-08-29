@@ -105,7 +105,8 @@ if tab == "📤 Upload Document":
                         f"{BACKEND_URL}/api/upload",
                         files=files,
                         data=data,
-                        headers=headers
+                        headers=headers,
+                        timeout=(15, 300)
                     )
 
                 if response.status_code == 200:
@@ -137,7 +138,7 @@ elif tab == "❓ Ask Anything":
                     "X-Groq-API-Key": st.session_state.groq_api_key,
                     "X-Session-ID": st.session_state.session_id
                 }
-                response = requests.post(f"{BACKEND_URL}/api/ask", json={"question": question}, headers=headers)
+                response = requests.post(f"{BACKEND_URL}/api/ask", json={"question": question}, headers=headers, timeout=(15, 300))
 
             if response.status_code == 200:
                 st.markdown("### ✅ Answer")
@@ -160,7 +161,7 @@ elif tab == "🧠 Challenge Me":
                         "X-Groq-API-Key": st.session_state.groq_api_key,
                         "X-Session-ID": st.session_state.session_id
                     }
-                    response = requests.get(f"{BACKEND_URL}/api/challenge", headers=headers)
+                    response = requests.get(f"{BACKEND_URL}/api/challenge", headers=headers, timeout=(15, 300))
             
             if response.status_code == 200:
                 # Store generated questions and explicitly reset related state lists 
@@ -196,7 +197,8 @@ elif tab == "🧠 Challenge Me":
                     response = requests.post(
                         f"{BACKEND_URL}/api/evaluate",
                         json={"answers": st.session_state.answers},
-                        headers=headers
+                        headers=headers,
+                        timeout=(15, 300)
                     )
 
                 if response.status_code == 200:

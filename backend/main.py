@@ -65,10 +65,13 @@ app = FastAPI(
 
 # ── Middleware ──────────────────────────────────────────────────
 
-# Configure CORS: Allow frontend (Streamlit or others) to access backend
+# Configure CORS
+FRONTEND_URL = os.getenv("FRONTEND_URL")
+allow_origins = [FRONTEND_URL, "http://localhost:8501"] if FRONTEND_URL else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # NOTE: You can restrict this to localhost or frontend domain in production
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -92,3 +95,10 @@ def read_root() -> dict:
         dict: A dictionary containing a status message.
     """
     return {"msg": "Smart Assistant API is running"}
+
+@app.get("/health")
+def health_check() -> dict:
+    """
+    Standard health check endpoint for Cloud Run deployment verification.
+    """
+    return {"status": "ok"}
