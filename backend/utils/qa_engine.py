@@ -40,14 +40,13 @@ from utils.local_llm import generate_local_text
 # ── Initialization ───────────────────────────────────────────────
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_KEY"))
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHUNKS_PATH = os.path.join(BASE_DIR, "vectorstore", "chunk_texts.pkl")
 
 # ── Core Operations ──────────────────────────────────────────────
 
-def generate_answer(question: str, context_chunks: list[str]) -> str:
+def generate_answer(question: str, context_chunks: list[str], api_key: str = None) -> str:
     """
     Generates a grounded answer with justification using the Gemini LLM.
 
@@ -97,6 +96,8 @@ Answer:
         return generate_local_text(prompt, cfg["llm_choice"])
 
     # Default: direct Gemini call (mode not yet set)
+    if api_key:
+        genai.configure(api_key=api_key)
     model = genai.GenerativeModel("gemini-flash-latest")
     response = model.generate_content(prompt)
     return response.text.strip()
@@ -124,7 +125,7 @@ def load_context() -> str:
     # Cap string limit to roughly 20 chunks to avoid standard token limits
     return "\n\n".join(chunks[:20])
 
-def generate_logic_questions() -> str:
+def generate_logic_questions(api_key: str = None) -> str:
     """
     Asynchronously calls Gemini to generate 3 logic-based questions.
 
@@ -166,12 +167,14 @@ Document:
         return result
 
     # Default: direct Gemini call
+    if api_key:
+        genai.configure(api_key=api_key)
     model = genai.GenerativeModel("gemini-flash-latest")
     response = model.generate_content(prompt)
     print("\n[DEBUG] Gemini Raw Output:\n", response.text)
     return response.text.strip()
 
-def evaluate_user_answers(user_answers: list[str]) -> list[dict]:
+def evaluate_user_answers(user_answers: list[str], api_key: str = None) -> list[dict]:
     """
     Uses Gemini to evaluate user-submitted answers against derived truth.
 
@@ -226,6 +229,8 @@ Return ONLY a valid JSON list in the format:
         raw_output = generate_local_text(prompt, cfg["llm_choice"])
     else:
         # Default: direct Gemini call
+        if api_key:
+            genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-flash-latest")
         response = model.generate_content(prompt)
         raw_output = response.text.strip()

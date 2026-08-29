@@ -53,13 +53,9 @@ _GEMINI_TASK_MAP = {
     "query":    "retrieval_query",
 }
 
-# Configure Gemini once at module load
-if GEMINI_KEY:
-    genai.configure(api_key=GEMINI_KEY)
-
 # ── Private provider implementations ────────────────────────────
 
-def _call_gemini_embed(text: str, task: str) -> list[float]:
+def _call_gemini_embed(text: str, task: str, api_key: str = None) -> list[float]:
     """
     Embeds text using the Gemini Embedding API.
 
@@ -73,9 +69,11 @@ def _call_gemini_embed(text: str, task: str) -> list[float]:
     Raises:
         Exception: Any API or network error.
     """
-    if not GEMINI_KEY:
-        raise ValueError("GEMINI_KEY not set — skipping Gemini embeddings.")
+    key_to_use = api_key or GEMINI_KEY
+    if not key_to_use:
+        raise ValueError("GEMINI_KEY not set and no api_key provided — skipping Gemini embeddings.")
 
+    genai.configure(api_key=key_to_use)
     task_type = _GEMINI_TASK_MAP.get(task, "retrieval_document")
     response = genai.embed_content(
         model=GEMINI_EMB_MODEL,
@@ -185,7 +183,7 @@ _EMBEDDING_CHAIN = [
 ]
 
 
-def embed_text(text: str, task: str = "document") -> list[float]:
+def embed_text(text: str, task: str = "document", api_key: str = None) -> list[float]:
     """
     Generates an embedding vector from the best available provider.
 
@@ -216,7 +214,10 @@ def embed_text(text: str, task: str = "document") -> list[float]:
     for name, call_fn in _EMBEDDING_CHAIN:
         try:
             print(f"[EMBED] Attempting provider: {name} (task={task})")
-            vector = call_fn(text, task)
+            if name == "Gemini":
+                vector = call_fn(text, task, api_key)
+            else:
+                vector = call_fn(text, task)
             print(f"[EMBED] Success with provider: {name} — dim={len(vector)}")
             return vector
 

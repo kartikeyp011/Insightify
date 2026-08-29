@@ -14,7 +14,7 @@ Dependencies:
     - utils.retriever: To fetch relevant document context.
     - utils.qa_engine: To generate answers based on context.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from utils.retriever import get_relevant_chunks
 from utils.qa_engine import generate_answer
@@ -35,7 +35,7 @@ class AskRequest(BaseModel):
 # ── Endpoints ────────────────────────────────────────────────────
 
 @router.post("/ask")
-async def ask_question(payload: AskRequest):
+async def ask_question(payload: AskRequest, x_gemini_api_key: str = Header(...)):
     """
     Asynchronously takes a question from the user and returns a generated answer.
 
@@ -57,12 +57,12 @@ async def ask_question(payload: AskRequest):
     """
     try:
         # Retrieve top relevant text chunks to provide context for the answer
-        chunks = get_relevant_chunks(payload.question)
+        chunks = get_relevant_chunks(payload.question, api_key=x_gemini_api_key)
         if not chunks:
             raise HTTPException(status_code=404, detail="No relevant context found.")
 
         # Generate response using the retrieved context
-        answer = generate_answer(question=payload.question, context_chunks=chunks)
+        answer = generate_answer(question=payload.question, context_chunks=chunks, api_key=x_gemini_api_key)
         return {"answer": answer}
 
     except Exception as e:

@@ -36,10 +36,8 @@ from utils.local_embedder import generate_local_embedding
 
 # ── Initialization ───────────────────────────────────────────────
 
-# Load Gemini API Key from .env file securely
+# Load environment variables securely
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_KEY")
-genai.configure(api_key=GEMINI_API_KEY)
 
 # Compute absolute paths to correctly resolve vectorstore storage locations
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -48,7 +46,7 @@ META_PATH = os.path.join(BASE_DIR, "vectorstore", "chunk_texts.pkl")
 
 # ── Embedding Logic ──────────────────────────────────────────────
 
-def embed_and_store_chunks(chunks: list[str]) -> None:
+def embed_and_store_chunks(chunks: list[str], api_key: str = None) -> None:
     """
     Embeds a list of text chunks using Gemini and stores them in a FAISS index.
 
@@ -97,6 +95,8 @@ def embed_and_store_chunks(chunks: list[str]) -> None:
             else:
                 # ── Default: direct Gemini Embedding API call ────────────────
                 # Generate the embedding using the Gemini API explicitly designated for retrieval
+                if api_key:
+                    genai.configure(api_key=api_key)
                 response = genai.embed_content(
                     model="models/gemini-embedding-2-preview",
                     content=chunk,

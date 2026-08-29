@@ -15,11 +15,10 @@ from utils.model_config import get_config
 from utils.llm_providers import generate_text
 from utils.local_llm import generate_local_text
 
-# Initialize the Gemini connection for operations across the summarizer module
+# Initialize the environment
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_KEY"))
 
-def generate_summary(text: str) -> str:
+def generate_summary(text: str, api_key: str = None) -> str:
     """
     Uses the Gemini LLM to generate a concise summary of the provided text.
 
@@ -52,6 +51,8 @@ def generate_summary(text: str) -> str:
             return generate_local_text(prompt, cfg["llm_choice"])
 
         # Default fallback to direct Gemini
+        if api_key:
+            genai.configure(api_key=api_key)
         model = genai.GenerativeModel(model_name="gemini-flash-latest")
         response = model.generate_content(prompt)
 

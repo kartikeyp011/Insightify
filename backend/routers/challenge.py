@@ -16,7 +16,7 @@ Dependencies:
     - pydantic: For request validation.
     - utils.qa_engine: To interact with Gemini for generation and evaluation.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from utils.qa_engine import generate_logic_questions, evaluate_user_answers
 import re
@@ -69,7 +69,7 @@ def extract_questions_from_text(text: str) -> list[str]:
 # ── Endpoints ────────────────────────────────────────────────────
 
 @router.get("/challenge")
-async def get_challenge_questions():
+async def get_challenge_questions(x_gemini_api_key: str = Header(...)):
     """
     Asynchronously calls Gemini to generate logic-based questions from document context.
 
@@ -83,7 +83,7 @@ async def get_challenge_questions():
     """
     try:
         # Call Gemini model to generate raw text containing the logic questions
-        raw_output = generate_logic_questions()
+        raw_output = generate_logic_questions(api_key=x_gemini_api_key)
         print("🧪 RAW GEMINI OUTPUT:\n", raw_output)
 
         # Clean and split into exactly 3 numbered questions
@@ -100,7 +100,7 @@ async def get_challenge_questions():
         raise HTTPException(status_code=500, detail=f"Error generating questions: {str(e)}")
 
 @router.post("/evaluate")
-async def evaluate_challenge(response: ChallengeResponse):
+async def evaluate_challenge(response: ChallengeResponse, x_gemini_api_key: str = Header(...)):
     """
     Asynchronously evaluates user answers against ideal answers using Gemini.
 
@@ -117,7 +117,7 @@ async def evaluate_challenge(response: ChallengeResponse):
     """
     try:
         # Pass the answers to the QA engine where Gemini evaluates logical correctness
-        feedback = evaluate_user_answers(response.answers)
+        feedback = evaluate_user_answers(response.answers, api_key=x_gemini_api_key)
         return {"feedback": feedback}
     except Exception as e:
         print("❌ Error evaluating answers:", e)

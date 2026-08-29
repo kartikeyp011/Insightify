@@ -38,7 +38,6 @@ from utils.local_embedder import generate_local_embedding
 
 # Ensure API configurations are set up to capture live requests
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_KEY"))
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX_PATH = os.path.join(BASE_DIR, "vectorstore", "faiss_index")
@@ -46,7 +45,7 @@ CHUNKS_PATH = os.path.join(BASE_DIR, "vectorstore", "chunk_texts.pkl")
 
 # ── Operations ──────────────────────────────────────────────────
 
-def get_relevant_chunks(query: str, top_k: int = 4) -> list[str]:
+def get_relevant_chunks(query: str, top_k: int = 4, api_key: str = None) -> list[str]:
     """
     Embeds the user query and retrieves conceptually similar chunks from FAISS.
 
@@ -94,6 +93,8 @@ def get_relevant_chunks(query: str, top_k: int = 4) -> list[str]:
         query_vector = np.array(raw_vector, dtype="float32").reshape(1, -1)
     else:
         # ── Default: direct Gemini Embedding API call ────────────────────
+        if api_key:
+            genai.configure(api_key=api_key)
         response = genai.embed_content(
             model="models/gemini-embedding-2-preview",
             content=query,

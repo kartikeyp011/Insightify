@@ -43,13 +43,9 @@ OPENROUTER_MODEL  = "mistralai/mistral-7b-instruct"  # Free tier on OpenRouter
 
 OPENROUTER_URL    = "https://openrouter.ai/api/v1/chat/completions"
 
-# Configure Gemini once at module load
-if GEMINI_KEY:
-    genai.configure(api_key=GEMINI_KEY)
-
 # ── Private provider implementations ────────────────────────────
 
-def _call_gemini(prompt: str) -> str:
+def _call_gemini(prompt: str, api_key: str = None) -> str:
     """
     Calls the Gemini GenerativeModel API and returns the response text.
 
@@ -62,9 +58,11 @@ def _call_gemini(prompt: str) -> str:
     Raises:
         Exception: Any network or API error propagates to the dispatcher.
     """
-    if not GEMINI_KEY:
-        raise ValueError("GEMINI_KEY not set — skipping Gemini.")
+    key_to_use = api_key or GEMINI_KEY
+    if not key_to_use:
+        raise ValueError("GEMINI_KEY not set and no api_key provided — skipping Gemini.")
 
+    genai.configure(api_key=key_to_use)
     model = genai.GenerativeModel(GEMINI_MODEL)
     response = model.generate_content(prompt)
     text = response.text.strip()
@@ -159,7 +157,7 @@ _LLM_CHAIN = [
 ]
 
 
-def generate_text(prompt: str) -> str:
+def generate_text(prompt: str, api_key: str = None) -> str:
     """
     Generates text from the best available LLM provider.
 
@@ -189,7 +187,10 @@ def generate_text(prompt: str) -> str:
     for name, call_fn in _LLM_CHAIN:
         try:
             print(f"[LLM] Attempting provider: {name}")
-            result = call_fn(prompt)
+            if name == "Gemini":
+                result = call_fn(prompt, api_key)
+            else:
+                result = call_fn(prompt)
             print(f"[LLM] Success with provider: {name}")
             return result
 

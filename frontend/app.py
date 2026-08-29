@@ -44,6 +44,17 @@ if "llm_choice" not in st.session_state:
 if "embedding_choice" not in st.session_state:
     st.session_state.embedding_choice = None  # Selected embedding model (local mode only)
 
+if "gemini_api_key" not in st.session_state:
+    st.session_state.gemini_api_key = ""
+
+st.sidebar.divider()
+st.session_state.gemini_api_key = st.sidebar.text_input(
+    "🔑 Gemini API Key",
+    value=st.session_state.gemini_api_key,
+    type="password",
+    help="Your API key is stored securely in this browser session and deleted when you leave."
+)
+
 # ── Tab 1: Upload Document ─────────────────────────────────────
 if tab == "📤 Upload Document":
     st.header("⚙️ Choose Your AI Configuration")
@@ -124,37 +135,42 @@ if tab == "📤 Upload Document":
 
     if uploaded_file is not None:
         if st.button("Process Document"):
-            with st.spinner("⏳ Uploading and processing..."):
-                # Prepare file for multipart/form-data POST request to FastAPI
-                files = {"file": (uploaded_file.name, uploaded_file.read())}
-
-                # Bundle the model-config selections as additional form fields.
-                # None values are sent as empty strings so the field is always
-                # present; the backend treats "" the same as absent.
-                backend_mode = "local" if st.session_state.mode == "Local Models" else "external"
-                data = {
-                    "mode": backend_mode,
-                    "llm_choice": st.session_state.llm_choice or "",
-                    "embedding_choice": st.session_state.embedding_choice or "",
-                    "chunking_strategy": st.session_state.chunking_strategy or "",
-                }
-                response = requests.post(
-                    f"{BACKEND_URL}/api/upload",
-                    files=files,
-                    data=data,
-                )
-
-            if response.status_code == 200:
-                st.success("✅ File uploaded successfully!")
-                summary = response.json().get("summary")
-
-                if summary is not None:
-                    st.subheader("📄 Auto Summary")
-                    st.markdown(summary)
-                else:
-                    st.error("❌ No summary returned from backend.")
+            if not st.session_state.gemini_api_key:
+                st.warning("⚠️ Please enter your Gemini API Key in the sidebar first.")
             else:
-                st.error(f"❌ Upload failed: {response.json().get('detail', 'Unknown error')}")
+                with st.spinner("⏳ Uploading and processing..."):
+                    # Prepare file for multipart/form-data POST request to FastAPI
+                    files = {"file": (uploaded_file.name, uploaded_file.read())}
+
+                    # Bundle the model-config selections as additional form fields.
+                    # None values are sent as empty strings so the field is always
+                    # present; the backend treats "" the same as absent.
+                    backend_mode = "local" if st.session_state.mode == "Local Models" else "external"
+                    data = {
+                        "mode": backend_mode,
+                        "llm_choice": st.session_state.llm_choice or "",
+                        "embedding_choice": st.session_state.embedding_choice or "",
+                        "chunking_strategy": st.session_state.chunking_strategy or "",
+                    }
+                    headers = {"X-Gemini-API-Key": st.session_state.gemini_api_key}
+                    response = requests.post(
+                        f"{BACKEND_URL}/api/upload",
+                        files=files,
+                        data=data,
+                        headers=headers
+                    )
+
+                if response.status_code == 200:
+                    st.success("✅ File uploaded successfully!")
+                    summary = response.json().get("summary")
+
+                    if summary is not None:
+                        st.subheader("📄 Auto Summary")
+                        st.markdown(summary)
+                    else:
+                        st.error("❌ No summary returned from backend.")
+                else:
+                    st.error(f"❌ Upload failed: {response.json().get('detail', 'Unknown error')}")
 
 # ── Tab 2: Ask Anything ────────────────────────────────────────
 elif tab == "❓ Ask Anything":
@@ -162,11 +178,14 @@ elif tab == "❓ Ask Anything":
     question = st.text_input("Type your question here:")
 
     if st.button("Ask"):
-        if not question.strip():
+        if not st.session_state.gemini_api_key:
+            st.warning("⚠️ Please enter your Gemini API Key in the sidebar first.")
+        elif not question.strip():
             st.warning("⚠️ Please enter a question.")
         else:
             with st.spinner("🔍 Getting answer from AI..."):
-                response = requests.post(f"{BACKEND_URL}/api/ask", json={"question": question})
+                headers = {"X-Gemini-API-Key": st.session_state.gemini_api_key}
+                response = requests.post(f"{BACKEND_URL}/api/ask", json={"question": question}, headers=headers)
 
             if response.status_code == 200:
                 st.markdown("### ✅ Answer")
@@ -180,8 +199,12 @@ elif tab == "🧠 Challenge Me":
 
     if not st.session_state.questions:
         if st.button("Generate Challenge Questions"):
-            with st.spinner("💡 Generating questions..."):
-                response = requests.get(f"{BACKEND_URL}/api/challenge")
+            if not st.session_state.gemini_api_key:
+                st.warning("⚠️ Please enter your Gemini API Key in the sidebar first.")
+            else:
+                with st.spinner("💡 Generating questions..."):
+                    headers = {"X-Gemini-API-Key": st.session_state.gemini_api_key}
+                    response = requests.get(f"{BACKEND_URL}/api/challenge", headers=headers)
             
             if response.status_code == 200:
                 # Store generated questions and explicitly reset related state lists 
@@ -205,11 +228,15 @@ elif tab == "🧠 Challenge Me":
 
         if st.button("Submit Answers"):
             # Ensure every text area has been filled before attempting submission
-            if all(ans.strip() for ans in st.session_state.answers):
+            if not st.session_state.gemini_api_key:
+                st.warning("⚠️ Please enter your Gemini API Key in the sidebar first.")
+            elif all(ans.strip() for ans in st.session_state.answers):
                 with st.spinner("📝 Evaluating your answers..."):
+                    headers = {"X-Gemini-API-Key": st.session_state.gemini_api_key}
                     response = requests.post(
                         f"{BACKEND_URL}/api/evaluate",
-                        json={"answers": st.session_state.answers}
+                        json={"answers": st.session_state.answers},
+                        headers=headers
                     )
 
                 if response.status_code == 200:

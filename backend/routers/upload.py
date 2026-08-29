@@ -19,7 +19,7 @@ Dependencies:
     - utils.embedder: To convert text into vector representations.
     - utils.model_config: To persist the user's model/embedding selection.
 """
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header
 from fastapi.responses import JSONResponse
 
 # Import utility functions for parsing, summarizing, chunking, and embedding
@@ -41,6 +41,7 @@ async def upload_file(
     llm_choice: str = Form(default=""),
     embedding_choice: str = Form(default=""),
     chunking_strategy: str = Form(default="Large Chunking (1200, overlap 200)"),
+    x_gemini_api_key: str = Header(default=None),
 ):
     """
     Asynchronously handles file uploads (PDF/TXT), processes text, and populates vectorstore.
@@ -115,7 +116,7 @@ async def upload_file(
     try:
         # Step 5: Generate a short API-driven summary for the frontend
         # NOTE: This uses Gemini behind the scenes.
-        summary = generate_summary(text)
+        summary = generate_summary(text, api_key=x_gemini_api_key)
 
         # Step 6: Save raw text to a file (optional but useful for debugging full context)
         import os
@@ -129,7 +130,7 @@ async def upload_file(
         chunks = split_text_into_chunks(text, strategy=chunking_strategy)
 
         # Step 8: Use Gemini Embedding API to create vector embeddings & save to FAISS
-        embed_and_store_chunks(chunks)
+        embed_and_store_chunks(chunks, api_key=x_gemini_api_key)
 
         # Step 9: Return generated summary plus the active config as response
         from utils.model_config import get_config
