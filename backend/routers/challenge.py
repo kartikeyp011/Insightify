@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from utils.qa_engine import generate_logic_questions, evaluate_user_answers
 import re
+import os
 
 router = APIRouter()
 

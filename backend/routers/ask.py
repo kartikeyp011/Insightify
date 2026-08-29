@@ -68,11 +68,13 @@ async def ask_question(
         if not relevant_chunks:
             raise HTTPException(status_code=404, detail="No relevant context found.")
             
-        # 2. Join the relevant chunks into a single context string
-        context = "\n".join(relevant_chunks)
-        
-        # 3. Generate the answer utilizing the LLM fallback chain
-        answer = generate_answer(context=context, question=payload.question, api_key=x_gemini_api_key, groq_api_key=x_groq_api_key)
+        # 2. Generate the answer utilizing the LLM fallback chain
+        answer = generate_answer(
+            question=payload.question, 
+            context_chunks=relevant_chunks, 
+            api_key=x_gemini_api_key, 
+            groq_api_key=x_groq_api_key
+        )
         return {"answer": answer}
 
     except Exception as e:

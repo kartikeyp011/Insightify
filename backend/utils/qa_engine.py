@@ -44,19 +44,36 @@ CHUNKS_PATH = os.path.join(BASE_DIR, "vectorstore", "chunk_texts.pkl")
 
 # ── Core Operations ──────────────────────────────────────────────
 
-def generate_answer(question: str, context_chunks: list[str], api_key: str = None, groq_api_key: str = None) -> str:
+def generate_answer(
+    question: str, 
+    context_chunks: list[str] = None, 
+    context: str | list[str] = None, 
+    api_key: str = None, 
+    groq_api_key: str = None
+) -> str:
     """
     Generates a grounded answer with justification using the LLM fallback chain.
     """
-    # Combine individual chunks into a unified string block for prompting
-    context = "\n\n".join(context_chunks)
+    # Accept either context_chunks (list of str) or context (str or list of str)
+    if context_chunks is not None:
+        if isinstance(context_chunks, list):
+            context_str = "\n\n".join(context_chunks)
+        else:
+            context_str = str(context_chunks)
+    elif context is not None:
+        if isinstance(context, list):
+            context_str = "\n\n".join(context)
+        else:
+            context_str = str(context)
+    else:
+        context_str = ""
 
     prompt = f"""
 You are an expert research assistant.
 Use the below document content to answer the question.
 
 Context:
-{context}
+{context_str}
 
 Question: {question}
 
