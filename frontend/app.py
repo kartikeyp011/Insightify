@@ -14,6 +14,7 @@ Dependencies:
 import streamlit as st
 import requests
 import os
+import uuid
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
@@ -36,38 +37,30 @@ if "answers" not in st.session_state:
 if "evaluation" not in st.session_state:
     st.session_state.evaluation = []
 
-# Model / embedding selection state
-if "mode" not in st.session_state:
-    st.session_state.mode = None          # "Local Models" | "External APIs"
-if "llm_choice" not in st.session_state:
-    st.session_state.llm_choice = None    # Selected LLM name (local mode only)
-if "embedding_choice" not in st.session_state:
-    st.session_state.embedding_choice = None  # Selected embedding model (local mode only)
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
 
 if "gemini_api_key" not in st.session_state:
     st.session_state.gemini_api_key = ""
-
-st.sidebar.divider()
-st.session_state.gemini_api_key = st.sidebar.text_input(
-    "🔑 Gemini API Key",
-    value=st.session_state.gemini_api_key,
-    type="password",
-    help="Your API key is stored securely in this browser session and deleted when you leave."
-)
+if "groq_api_key" not in st.session_state:
+    st.session_state.groq_api_key = ""
 
 # ── Tab 1: Upload Document ─────────────────────────────────────
 if tab == "📤 Upload Document":
     st.header("⚙️ Choose Your AI Configuration")
 
-    # Mode selector — radio renders immediately without a submit button
-    mode = st.radio(
-        "Select inference mode:",
-        options=["Local Models", "External APIs"],
-        index=0 if st.session_state.mode != "External APIs" else 1,
-        horizontal=True,
-        key="mode_radio",
+    st.session_state.gemini_api_key = st.text_input(
+        "🔑 Gemini API Key (Required)",
+        value=st.session_state.gemini_api_key,
+        type="password",
+        help="Your API key is stored securely in this browser session and deleted when you leave."
     )
-    st.session_state.mode = mode
+    st.session_state.groq_api_key = st.text_input(
+        "🔑 Groq API Key (Optional Fallback)",
+        value=st.session_state.groq_api_key,
+        type="password",
+        help="Optional fallback API key for Groq models."
+    )
 
     # Chunking strategy selector available for ALL modes (Local or External)
     chunking_options = [
@@ -86,48 +79,6 @@ if tab == "📤 Upload Document":
         index=chunking_options.index(st.session_state.chunking_strategy) if st.session_state.chunking_strategy in chunking_options else 0,
     )
 
-    if mode == "Local Models":
-        col1, col2 = st.columns(2)
-
-        with col1:
-            llm_options = ["Phi-3 Mini", "Gemma 2B", "DeepSeek R1", "SmolLM2"]
-            llm_default = (
-                llm_options.index(st.session_state.llm_choice)
-                if st.session_state.llm_choice in llm_options
-                else 0
-            )
-            st.session_state.llm_choice = st.selectbox(
-                "🧠 LLM Model",
-                options=llm_options,
-                index=llm_default,
-                key="llm_selectbox",
-            )
-
-        with col2:
-            emb_options = ["BGE-base", "all-MiniLM-L6-v2", "e5-base"]
-            emb_default = (
-                emb_options.index(st.session_state.embedding_choice)
-                if st.session_state.embedding_choice in emb_options
-                else 0
-            )
-            st.session_state.embedding_choice = st.selectbox(
-                "📐 Embedding Model",
-                options=emb_options,
-                index=emb_default,
-                key="embedding_selectbox",
-            )
-
-        st.info(
-            f"✅ **Configuration saved** — LLM: `{st.session_state.llm_choice}` | "
-            f"Embeddings: `{st.session_state.embedding_choice}`"
-        )
-
-    else:  # External APIs
-        # Clear local model selections when switching to external mode
-        st.session_state.llm_choice = None
-        st.session_state.embedding_choice = None
-        st.info("🌐 **External APIs mode selected.** Model selection is handled server-side.")
-
     st.divider()
 
     st.header("📤 Upload PDF or TXT File")
@@ -136,23 +87,20 @@ if tab == "📤 Upload Document":
     if uploaded_file is not None:
         if st.button("Process Document"):
             if not st.session_state.gemini_api_key:
-                st.warning("⚠️ Please enter your Gemini API Key in the sidebar first.")
+                st.warning("⚠️ Please enter your Gemini API Key first.")
             else:
                 with st.spinner("⏳ Uploading and processing..."):
                     # Prepare file for multipart/form-data POST request to FastAPI
                     files = {"file": (uploaded_file.name, uploaded_file.read())}
 
-                    # Bundle the model-config selections as additional form fields.
-                    # None values are sent as empty strings so the field is always
-                    # present; the backend treats "" the same as absent.
-                    backend_mode = "local" if st.session_state.mode == "Local Models" else "external"
                     data = {
-                        "mode": backend_mode,
-                        "llm_choice": st.session_state.llm_choice or "",
-                        "embedding_choice": st.session_state.embedding_choice or "",
                         "chunking_strategy": st.session_state.chunking_strategy or "",
                     }
-                    headers = {"X-Gemini-API-Key": st.session_state.gemini_api_key}
+                    headers = {
+                        "X-Gemini-API-Key": st.session_state.gemini_api_key,
+                        "X-Groq-API-Key": st.session_state.groq_api_key,
+                        "X-Session-ID": st.session_state.session_id
+                    }
                     response = requests.post(
                         f"{BACKEND_URL}/api/upload",
                         files=files,
@@ -179,12 +127,16 @@ elif tab == "❓ Ask Anything":
 
     if st.button("Ask"):
         if not st.session_state.gemini_api_key:
-            st.warning("⚠️ Please enter your Gemini API Key in the sidebar first.")
+            st.warning("⚠️ Please enter your Gemini API Key first.")
         elif not question.strip():
             st.warning("⚠️ Please enter a question.")
         else:
             with st.spinner("🔍 Getting answer from AI..."):
-                headers = {"X-Gemini-API-Key": st.session_state.gemini_api_key}
+                headers = {
+                    "X-Gemini-API-Key": st.session_state.gemini_api_key,
+                    "X-Groq-API-Key": st.session_state.groq_api_key,
+                    "X-Session-ID": st.session_state.session_id
+                }
                 response = requests.post(f"{BACKEND_URL}/api/ask", json={"question": question}, headers=headers)
 
             if response.status_code == 200:
@@ -200,10 +152,14 @@ elif tab == "🧠 Challenge Me":
     if not st.session_state.questions:
         if st.button("Generate Challenge Questions"):
             if not st.session_state.gemini_api_key:
-                st.warning("⚠️ Please enter your Gemini API Key in the sidebar first.")
+                st.warning("⚠️ Please enter your Gemini API Key first.")
             else:
                 with st.spinner("💡 Generating questions..."):
-                    headers = {"X-Gemini-API-Key": st.session_state.gemini_api_key}
+                    headers = {
+                        "X-Gemini-API-Key": st.session_state.gemini_api_key,
+                        "X-Groq-API-Key": st.session_state.groq_api_key,
+                        "X-Session-ID": st.session_state.session_id
+                    }
                     response = requests.get(f"{BACKEND_URL}/api/challenge", headers=headers)
             
             if response.status_code == 200:
@@ -229,10 +185,14 @@ elif tab == "🧠 Challenge Me":
         if st.button("Submit Answers"):
             # Ensure every text area has been filled before attempting submission
             if not st.session_state.gemini_api_key:
-                st.warning("⚠️ Please enter your Gemini API Key in the sidebar first.")
+                st.warning("⚠️ Please enter your Gemini API Key first.")
             elif all(ans.strip() for ans in st.session_state.answers):
                 with st.spinner("📝 Evaluating your answers..."):
-                    headers = {"X-Gemini-API-Key": st.session_state.gemini_api_key}
+                    headers = {
+                        "X-Gemini-API-Key": st.session_state.gemini_api_key,
+                        "X-Groq-API-Key": st.session_state.groq_api_key,
+                        "X-Session-ID": st.session_state.session_id
+                    }
                     response = requests.post(
                         f"{BACKEND_URL}/api/evaluate",
                         json={"answers": st.session_state.answers},

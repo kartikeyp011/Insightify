@@ -6,7 +6,7 @@ This module abstracts all LLM text generation behind a single public function
 the chain below and automatically falls back on any failure (exception, rate
 limit, empty response):
 
-    Gemini  →  Groq  →  OpenRouter
+    Gemini  →  Groq
 
 Each provider is isolated in its own private function so failures are fully
 contained. If every provider fails, a ``RuntimeError`` is raised so the
@@ -34,14 +34,8 @@ load_dotenv()
 
 GEMINI_KEY        = os.getenv("GEMINI_KEY")
 GROQ_KEY          = os.getenv("GROQ_API_KEY")
-OPENROUTER_KEY    = os.getenv("OPENROUTER_API_KEY")
-
-# Default models for each provider — easy to swap without touching logic
 GEMINI_MODEL      = "gemini-flash-latest"
 GROQ_MODEL        = "llama3-8b-8192"          # Fast, widely available on Groq
-OPENROUTER_MODEL  = "mistralai/mistral-7b-instruct"  # Free tier on OpenRouter
-
-OPENROUTER_URL    = "https://openrouter.ai/api/v1/chat/completions"
 
 # ── Private provider implementations ────────────────────────────
 
@@ -73,12 +67,13 @@ def _call_gemini(prompt: str, api_key: str = None) -> str:
     return text
 
 
-def _call_groq(prompt: str) -> str:
+def _call_groq(prompt: str, api_key: str = None) -> str:
     """
     Calls the Groq Chat Completions API via the official groq SDK.
 
     Args:
         prompt (str): The full prompt to send as a user message.
+        api_key (str): Optional user-provided Groq API Key.
 
     Returns:
         str: Stripped content from the first choice.
@@ -87,8 +82,9 @@ def _call_groq(prompt: str) -> str:
         ImportError: If the groq package is not installed.
         Exception: Any API or network error.
     """
-    if not GROQ_KEY:
-        raise ValueError("GROQ_API_KEY not set — skipping Groq.")
+    key_to_use = api_key or GROQ_KEY
+    if not key_to_use:
+        raise ValueError("GROQ_API_KEY not set and no api_key provided — skipping Groq.")
 
     try:
         from groq import Groq  # Lazy import so missing package only fails here
@@ -97,7 +93,7 @@ def _call_groq(prompt: str) -> str:
             "groq package not found. Install with: pip install groq"
         ) from exc
 
-    client = Groq(api_key=GROQ_KEY)
+    client = Groq(api_key=key_to_use)
     chat_response = client.chat.completions.create(
         model=GROQ_MODEL,
         messages=[{"role": "user", "content": prompt}],
@@ -110,58 +106,20 @@ def _call_groq(prompt: str) -> str:
     return text
 
 
-def _call_openrouter(prompt: str) -> str:
-    """
-    Calls the OpenRouter Chat Completions API via plain HTTP POST.
-
-    Args:
-        prompt (str): The full prompt to send as a user message.
-
-    Returns:
-        str: Stripped content from the first choice.
-
-    Raises:
-        requests.HTTPError: On non-2xx status codes.
-        Exception: Any network or parsing error.
-    """
-    if not OPENROUTER_KEY:
-        raise ValueError("OPENROUTER_API_KEY not set — skipping OpenRouter.")
-
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": OPENROUTER_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-    }
-
-    resp = requests.post(OPENROUTER_URL, json=payload, headers=headers, timeout=30)
-    resp.raise_for_status()
-
-    text = resp.json()["choices"][0]["message"]["content"].strip()
-
-    if not text:
-        raise ValueError("OpenRouter returned an empty response.")
-
-    return text
-
-
 # ── Public dispatcher ────────────────────────────────────────────
 
 # Ordered chain: (provider name, callable)
 _LLM_CHAIN = [
     ("Gemini",      _call_gemini),
     ("Groq",        _call_groq),
-    ("OpenRouter",  _call_openrouter),
 ]
 
 
-def generate_text(prompt: str, api_key: str = None) -> str:
+def generate_text(prompt: str, api_key: str = None, groq_api_key: str = None) -> str:
     """
     Generates text from the best available LLM provider.
 
-    Iterates through the provider chain (Gemini → Groq → OpenRouter),
+    Iterates through the provider chain (Gemini → Groq),
     attempting each in turn. The first successful non-empty response is
     returned. If all providers fail the collective exception context is
     collected and re-raised as a RuntimeError.
@@ -189,6 +147,8 @@ def generate_text(prompt: str, api_key: str = None) -> str:
             print(f"[LLM] Attempting provider: {name}")
             if name == "Gemini":
                 result = call_fn(prompt, api_key)
+            elif name == "Groq":
+                result = call_fn(prompt, groq_api_key)
             else:
                 result = call_fn(prompt)
             print(f"[LLM] Success with provider: {name}")

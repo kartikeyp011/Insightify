@@ -11,16 +11,14 @@ import os
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-from utils.model_config import get_config
 from utils.llm_providers import generate_text
-from utils.local_llm import generate_local_text
 
 # Initialize the environment
 load_dotenv()
 
-def generate_summary(text: str, api_key: str = None) -> str:
+def generate_summary(text: str, api_key: str = None, groq_api_key: str = None) -> str:
     """
-    Uses the Gemini LLM to generate a concise summary of the provided text.
+    Uses the AI fallback chain to generate a concise summary of the provided text.
 
     This function attempts to synthesize the main points into a 150-word bounded
     paragraph. It protects against generation-level failures by catching exceptions.
@@ -30,10 +28,6 @@ def generate_summary(text: str, api_key: str = None) -> str:
 
     Returns:
         str: A synthesized summary text chunk, or a blank string/None if the operation failed.
-
-    Example:
-        summary = generate_summary("Extremely long earnings report...")
-        # summary => "The report highlights a Q3 growth..."
     """
     try:
         # Instruction prompt ensuring token limitation compliance from Gemini
@@ -43,20 +37,7 @@ def generate_summary(text: str, api_key: str = None) -> str:
             f"{text}"
         )
 
-        cfg = get_config()
-        if cfg["mode"] == "external":
-            return generate_text(prompt)
-        elif cfg["mode"] == "local":
-            print(f"[LOCAL-LLM] generate_summary using local model: {cfg['llm_choice']}")
-            return generate_local_text(prompt, cfg["llm_choice"])
-
-        # Default fallback to direct Gemini
-        if api_key:
-            genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(model_name="gemini-flash-latest")
-        response = model.generate_content(prompt)
-
-        return response.text.strip()
+        return generate_text(prompt, api_key=api_key, groq_api_key=groq_api_key)
 
     except Exception as e:
         # TODO(dev): Should gracefully propagate this forward as an HTTPException detail instead of console log

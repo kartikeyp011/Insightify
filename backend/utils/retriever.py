@@ -30,9 +30,7 @@ import os
 from dotenv import load_dotenv
 import google.generativeai as genai
 
-from utils.model_config import get_config
 from utils.embedding_providers import embed_text
-from utils.local_embedder import generate_local_embedding
 
 # ── Initialization ───────────────────────────────────────────────
 
@@ -40,68 +38,39 @@ from utils.local_embedder import generate_local_embedding
 load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-INDEX_PATH = os.path.join(BASE_DIR, "vectorstore", "faiss_index")
-CHUNKS_PATH = os.path.join(BASE_DIR, "vectorstore", "chunk_texts.pkl")
+def get_session_paths(session_id: str):
+    """Returns the faiss_index and chunk_texts.pkl paths for the given session_id."""
+    session_dir = os.path.join(BASE_DIR, "vectorstore", session_id)
+    return os.path.join(session_dir, "faiss_index"), os.path.join(session_dir, "chunk_texts.pkl")
 
 # ── Operations ──────────────────────────────────────────────────
 
-def get_relevant_chunks(query: str, top_k: int = 4, api_key: str = None) -> list[str]:
+def get_relevant_chunks(query: str, session_id: str = None, top_k: int = 4, api_key: str = None) -> list[str]:
     """
     Embeds the user query and retrieves conceptually similar chunks from FAISS.
+    """
+    if not session_id:
+        raise ValueError("session_id must be provided to retrieve embeddings.")
 
-    This function first ensures the FAISS index database exists. If so, it embeds
-    the incoming user query string using the Gemini Embedding API, searches for the `top_k`
-    nearest vectors, and maps these vector indices back to their actual underlying
-    text chunk content.
 
-    Args:
-        query (str): The plain-text question being asked.
-        top_k (int, optional): Maximum amount of related text chunks to return. Defaults to 4.
-
-    Returns:
-        list[str]: A list of relevant semantic text string excerpts.
-
-    Raises:
-        FileNotFoundError: If the index vectors or mapping references are entirely absent.
 
     Example:
         excerpts = get_relevant_chunks("What is the conclusion?", top_k=2)
         # excerpts => ["Conclusion: Context A...", "Summary: Context B..."]
     """
     # ── Database Verification ───────────────────────────────────
-    if not os.path.exists(INDEX_PATH) or not os.path.exists(CHUNKS_PATH):
-        raise FileNotFoundError("Vector store not found.")
+    index_path, meta_path = get_session_paths(session_id)
+    if not os.path.exists(index_path) or not os.path.exists(meta_path):
+        raise FileNotFoundError("Vector store not found for this session.")
 
     # ── Memory Loading ─────────────────────────────────────────
-    index = faiss.read_index(INDEX_PATH)
-    with open(CHUNKS_PATH, "rb") as f:
+    index = faiss.read_index(index_path)
+    with open(meta_path, "rb") as f:
         all_chunks = pickle.load(f)
 
     # ── Vectorization ───────────────────────────────────────────
-    cfg = get_config()
-    mode = cfg["mode"]
-    embedding_model = cfg.get("embedding_choice")  # Only set when mode == "local"
-
-    if mode == "external":
-        # ── External mode: fallback chain (Gemini → Together AI → HF) ──
-        raw_vector = embed_text(query, task="query")
-        query_vector = np.array(raw_vector, dtype="float32").reshape(1, -1)
-    elif mode == "local":
-        # ── Local mode: sentence-transformers (model from config) ────────
-        print(f"[LOCAL-EMBED] get_relevant_chunks using local model: {embedding_model}")
-        raw_vector = generate_local_embedding(query, embedding_model, task="query")
-        query_vector = np.array(raw_vector, dtype="float32").reshape(1, -1)
-    else:
-        # ── Default: direct Gemini Embedding API call ────────────────────
-        if api_key:
-            genai.configure(api_key=api_key)
-        response = genai.embed_content(
-            model="models/gemini-embedding-2-preview",
-            content=query,
-            task_type="retrieval_query",
-        )
-        # Needs to be reshaped to conform to FAISS search expectations [1, 768]
-        query_vector = np.array(response["embedding"], dtype="float32").reshape(1, -1)
+    raw_vector = embed_text(query, task="query", api_key=api_key)
+    query_vector = np.array(raw_vector, dtype="float32").reshape(1, -1)
 
     # ── Searching ──────────────────────────────────────────────
     # Distances provide score magnitude; indices locate actual string mappings

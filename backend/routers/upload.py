@@ -27,7 +27,6 @@ from utils.parser import extract_text_from_file
 from utils.summarizer import generate_summary
 from utils.chunker import split_text_into_chunks
 from utils.embedder import embed_and_store_chunks
-from utils.model_config import set_config
 
 # Initialize FastAPI router
 router = APIRouter()
@@ -37,11 +36,10 @@ router = APIRouter()
 @router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
-    mode: str = Form(default=""),
-    llm_choice: str = Form(default=""),
-    embedding_choice: str = Form(default=""),
     chunking_strategy: str = Form(default="Large Chunking (1200, overlap 200)"),
     x_gemini_api_key: str = Header(default=None),
+    x_groq_api_key: str = Header(default=None),
+    x_session_id: str = Header(...),
 ):
     """
     Asynchronously handles file uploads (PDF/TXT), processes text, and populates vectorstore.
@@ -74,21 +72,8 @@ async def upload_file(
     """
     filename = file.filename
 
-    # ── Model Configuration ──────────────────────────────────────
-    # Persist the user's model/embedding selection when valid values are supplied.
-    # Fields arrive as empty strings when the frontend sends no selection, so we
-    # treat "" the same as absent to preserve full backward compatibility.
-    if mode:  # non-empty string means the user explicitly chose something
-        try:
-            set_config(
-                mode=mode,
-                llm_choice=llm_choice or None,
-                embedding_choice=embedding_choice or None,
-            )
-        except ValueError as exc:
-            # Invalid option values — surface as a 400 rather than crashing the
-            # whole upload. The file processing pipeline still runs below.
-            raise HTTPException(status_code=400, detail=f"Invalid model config: {exc}")
+    # ── Removed Model Configuration ──────────────────────────────
+    # We now strictly use the dynamic fallback chain.
 
     # Step 1: Check if file is a PDF or TXT to prevent unhandled media types
     if not (filename.endswith(".pdf") or filename.endswith(".txt")):
@@ -116,12 +101,12 @@ async def upload_file(
     try:
         # Step 5: Generate a short API-driven summary for the frontend
         # NOTE: This uses Gemini behind the scenes.
-        summary = generate_summary(text, api_key=x_gemini_api_key)
+        summary = generate_summary(text, api_key=x_gemini_api_key, groq_api_key=x_groq_api_key)
 
         # Step 6: Save raw text to a file (optional but useful for debugging full context)
         import os
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        vectorstore_path = os.path.join(base_dir, "vectorstore")
+        vectorstore_path = os.path.join(base_dir, "vectorstore", x_session_id)
         os.makedirs(vectorstore_path, exist_ok=True)
         with open(os.path.join(vectorstore_path, "temp_text.txt"), "w", encoding="utf-8") as f:
             f.write(text)
@@ -130,12 +115,11 @@ async def upload_file(
         chunks = split_text_into_chunks(text, strategy=chunking_strategy)
 
         # Step 8: Use Gemini Embedding API to create vector embeddings & save to FAISS
-        embed_and_store_chunks(chunks, api_key=x_gemini_api_key)
+        embed_and_store_chunks(chunks, session_id=x_session_id, api_key=x_gemini_api_key)
 
         # Step 9: Return generated summary plus the active config as response
-        from utils.model_config import get_config
         return JSONResponse(
-            content={"summary": summary, "config": get_config()},
+            content={"summary": summary},
             status_code=200,
         )
 

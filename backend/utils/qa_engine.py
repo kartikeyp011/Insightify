@@ -33,9 +33,7 @@ import re
 import json
 import pickle
 
-from utils.model_config import get_config
 from utils.llm_providers import generate_text
-from utils.local_llm import generate_local_text
 
 # ── Initialization ───────────────────────────────────────────────
 
@@ -46,24 +44,9 @@ CHUNKS_PATH = os.path.join(BASE_DIR, "vectorstore", "chunk_texts.pkl")
 
 # ── Core Operations ──────────────────────────────────────────────
 
-def generate_answer(question: str, context_chunks: list[str], api_key: str = None) -> str:
+def generate_answer(question: str, context_chunks: list[str], api_key: str = None, groq_api_key: str = None) -> str:
     """
-    Generates a grounded answer with justification using the Gemini LLM.
-
-    This function pieces together retrieved chunks of semantic context 
-    into a structured prompt, forcing the LLM to restrict its answers to 
-    provided knowledge and state its sources logically.
-
-    Args:
-        question (str): The user's query about the document.
-        context_chunks (list[str]): Relevant excerpts retrieved from FAISS.
-
-    Returns:
-        str: The generated response text, complete with internal justification.
-
-    Example:
-        answer = generate_answer("What is the ROI?", ["The ROI is 5%."])
-        # answer => "Based on the text, the ROI is 5%."
+    Generates a grounded answer with justification using the LLM fallback chain.
     """
     # Combine individual chunks into a unified string block for prompting
     context = "\n\n".join(context_chunks)
@@ -85,58 +68,26 @@ Instructions:
 Answer:
 """
 
-    # ── Provider dispatch ──────────────────────────────────────
-    cfg = get_config()
-    if cfg["mode"] == "external":
-        # Fallback chain: Gemini → Groq → OpenRouter
-        return generate_text(prompt)
-    elif cfg["mode"] == "local":
-        # Route to locally-running Ollama model chosen by the user
-        print(f"[LOCAL-LLM] generate_answer using local model: {cfg['llm_choice']}")
-        return generate_local_text(prompt, cfg["llm_choice"])
+    return generate_text(prompt, api_key=api_key, groq_api_key=groq_api_key)
 
-    # Default: direct Gemini call (mode not yet set)
-    if api_key:
-        genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-flash-latest")
-    response = model.generate_content(prompt)
-    return response.text.strip()
-
-def load_context() -> str:
+def load_context(session_id: str) -> str:
     """
-    Loads all document chunks as a single, concatenated string.
-
-    This is necessary for operations that require understanding the entire document
-    holistically (like generating global challenges), rather than answering targeted
-    semantic queries.
-
-    Returns:
-        str: The full text context limited to approximately 20 chunks to prevent context overflow.
-
-    Raises:
-        FileNotFoundError: If the chunk metadata file isn't found.
+    Loads all document chunks for a specific session as a single, concatenated string.
     """
-    if not os.path.exists(CHUNKS_PATH):
-        raise FileNotFoundError("No uploaded document found.")
+    chunks_path = os.path.join(BASE_DIR, "vectorstore", session_id, "chunk_texts.pkl")
+    if not os.path.exists(chunks_path):
+        raise FileNotFoundError("No uploaded document found for this session.")
 
-    with open(CHUNKS_PATH, "rb") as f:
+    with open(chunks_path, "rb") as f:
         chunks = pickle.load(f)
         
     # Cap string limit to roughly 20 chunks to avoid standard token limits
     return "\n\n".join(chunks[:20])
 
-def generate_logic_questions(api_key: str = None) -> str:
+def generate_logic_questions(full_text: str, api_key: str = None, groq_api_key: str = None) -> str:
     """
-    Asynchronously calls Gemini to generate 3 logic-based questions.
-
-    This compiles the full conversational document context and prompts the LLM
-    to formulate testable inference scenarios based on the data. 
-
-    Returns:
-        str: Raw, unparsed output directly from Gemini.
+    Generates 3 logic-based questions.
     """
-    context = load_context()
-
     prompt = f"""
 You are an AI assistant generating challenging logic-based questions from a document.
 
@@ -151,46 +102,22 @@ Instructions:
 
 Document:
 \"\"\"
-{context}
+{full_text}
 \"\"\"
 """
-    # ── Provider dispatch ──────────────────────────────────────
-    cfg = get_config()
-    if cfg["mode"] == "external":
-        result = generate_text(prompt)
-        print("\n[DEBUG] LLM Raw Output:\n", result)
-        return result
-    elif cfg["mode"] == "local":
-        print(f"[LOCAL-LLM] generate_logic_questions using local model: {cfg['llm_choice']}")
-        result = generate_local_text(prompt, cfg["llm_choice"])
-        print("\n[DEBUG] Local LLM Raw Output:\n", result)
-        return result
+    result = generate_text(prompt, api_key=api_key, groq_api_key=groq_api_key)
+    print("\n[DEBUG] LLM Raw Output:\n", result)
+    return result
 
-    # Default: direct Gemini call
-    if api_key:
-        genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-flash-latest")
-    response = model.generate_content(prompt)
-    print("\n[DEBUG] Gemini Raw Output:\n", response.text)
-    return response.text.strip()
-
-def evaluate_user_answers(user_answers: list[str], api_key: str = None) -> list[dict]:
+def evaluate_user_answers(user_answers: list[str], session_id: str = None, api_key: str = None, groq_api_key: str = None) -> list[dict]:
     """
-    Uses Gemini to evaluate user-submitted answers against derived truth.
-
-    This acts as an automatic grading system. It compares the user's answers against
-    the source document, produces an ideal truth answer, computes a relative score,
-    and returns granular feedback structure parsed from an enforced JSON response.
-
-    Args:
-        user_answers (list[str]): The plain text replies provided by the user.
-
-    Returns:
-        list[dict]: A list of objects containing question, truth, score, and feedback details.
-                    If parsing fails, returns a fallback structure encapsulating the raw output.
+    Evaluates user-submitted answers against derived truth using the fallback chain.
     """
+    if not session_id:
+        raise ValueError("session_id is required for evaluation.")
+    
     # Load the full document context to establish ground truth
-    context = load_context()
+    context = load_context(session_id)
 
     # Construct the evaluation prompt enforcing strict schema compliance
     prompt = f"""
@@ -220,20 +147,7 @@ Return ONLY a valid JSON list in the format:
 ]
     """
 
-    # ── Provider dispatch ──────────────────────────────────────
-    cfg = get_config()
-    if cfg["mode"] == "external":
-        raw_output = generate_text(prompt)
-    elif cfg["mode"] == "local":
-        print(f"[LOCAL-LLM] evaluate_user_answers using local model: {cfg['llm_choice']}")
-        raw_output = generate_local_text(prompt, cfg["llm_choice"])
-    else:
-        # Default: direct Gemini call
-        if api_key:
-            genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-flash-latest")
-        response = model.generate_content(prompt)
-        raw_output = response.text.strip()
+    raw_output = generate_text(prompt, api_key=api_key, groq_api_key=groq_api_key)
 
     # NOTE: Often LLMs output code blocks (e.g. ```json); these must be aggressively cleaned
     cleaned_output = re.sub(r"```json|```", "", raw_output).strip()

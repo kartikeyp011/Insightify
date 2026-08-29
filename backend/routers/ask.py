@@ -35,7 +35,12 @@ class AskRequest(BaseModel):
 # ── Endpoints ────────────────────────────────────────────────────
 
 @router.post("/ask")
-async def ask_question(payload: AskRequest, x_gemini_api_key: str = Header(...)):
+async def ask_question(
+    payload: AskRequest, 
+    x_gemini_api_key: str = Header(default=None),
+    x_groq_api_key: str = Header(default=None),
+    x_session_id: str = Header(...)
+):
     """
     Asynchronously takes a question from the user and returns a generated answer.
 
@@ -56,13 +61,18 @@ async def ask_question(payload: AskRequest, x_gemini_api_key: str = Header(...))
         # response => {"answer": "The main topic is ..."}
     """
     try:
-        # Retrieve top relevant text chunks to provide context for the answer
-        chunks = get_relevant_chunks(payload.question, api_key=x_gemini_api_key)
-        if not chunks:
+        # 1. Retrieve the most relevant chunks from FAISS based on user query
+        # We pass the dynamic user API key so the embedder can configure itself.
+        relevant_chunks = get_relevant_chunks(payload.question, session_id=x_session_id, api_key=x_gemini_api_key)
+        
+        if not relevant_chunks:
             raise HTTPException(status_code=404, detail="No relevant context found.")
-
-        # Generate response using the retrieved context
-        answer = generate_answer(question=payload.question, context_chunks=chunks, api_key=x_gemini_api_key)
+            
+        # 2. Join the relevant chunks into a single context string
+        context = "\n".join(relevant_chunks)
+        
+        # 3. Generate the answer utilizing the LLM fallback chain
+        answer = generate_answer(context=context, question=payload.question, api_key=x_gemini_api_key, groq_api_key=x_groq_api_key)
         return {"answer": answer}
 
     except Exception as e:

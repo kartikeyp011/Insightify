@@ -69,7 +69,11 @@ def extract_questions_from_text(text: str) -> list[str]:
 # ── Endpoints ────────────────────────────────────────────────────
 
 @router.get("/challenge")
-async def get_challenge_questions(x_gemini_api_key: str = Header(...)):
+async def generate_challenge(
+    x_gemini_api_key: str = Header(default=None),
+    x_groq_api_key: str = Header(default=None),
+    x_session_id: str = Header(...)
+):
     """
     Asynchronously calls Gemini to generate logic-based questions from document context.
 
@@ -82,8 +86,17 @@ async def get_challenge_questions(x_gemini_api_key: str = Header(...)):
         HTTPException: If unable to generate or parse at least 3 valid questions.
     """
     try:
-        # Call Gemini model to generate raw text containing the logic questions
-        raw_output = generate_logic_questions(api_key=x_gemini_api_key)
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        text_path = os.path.join(base_dir, "vectorstore", x_session_id, "temp_text.txt")
+        
+        if not os.path.exists(text_path):
+            raise HTTPException(status_code=400, detail="No document found. Please upload a file first.")
+            
+        with open(text_path, "r", encoding="utf-8") as f:
+            full_text = f.read()
+
+        # Generate 3 logic questions based on the text
+        raw_output = generate_logic_questions(full_text, api_key=x_gemini_api_key, groq_api_key=x_groq_api_key)
         print("🧪 RAW GEMINI OUTPUT:\n", raw_output)
 
         # Clean and split into exactly 3 numbered questions
@@ -100,7 +113,12 @@ async def get_challenge_questions(x_gemini_api_key: str = Header(...)):
         raise HTTPException(status_code=500, detail=f"Error generating questions: {str(e)}")
 
 @router.post("/evaluate")
-async def evaluate_challenge(response: ChallengeResponse, x_gemini_api_key: str = Header(...)):
+async def evaluate_answers(
+    request: ChallengeResponse,
+    x_gemini_api_key: str = Header(default=None),
+    x_groq_api_key: str = Header(default=None),
+    x_session_id: str = Header(...)
+):
     """
     Asynchronously evaluates user answers against ideal answers using Gemini.
 
@@ -117,7 +135,7 @@ async def evaluate_challenge(response: ChallengeResponse, x_gemini_api_key: str 
     """
     try:
         # Pass the answers to the QA engine where Gemini evaluates logical correctness
-        feedback = evaluate_user_answers(response.answers, api_key=x_gemini_api_key)
+        feedback = evaluate_user_answers(request.answers, session_id=x_session_id, api_key=x_gemini_api_key, groq_api_key=x_groq_api_key)
         return {"feedback": feedback}
     except Exception as e:
         print("❌ Error evaluating answers:", e)

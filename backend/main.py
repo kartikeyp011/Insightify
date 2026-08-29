@@ -19,6 +19,39 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import upload, ask, challenge
+from contextlib import asynccontextmanager
+import asyncio
+import time
+import shutil
+
+# ── Background Cleanup Task ─────────────────────────────────────
+
+async def cleanup_old_sessions():
+    """Background task to delete session folders older than 6 hours."""
+    vectorstore_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vectorstore")
+    expiration_seconds = 6 * 3600
+    while True:
+        try:
+            if os.path.exists(vectorstore_path):
+                now = time.time()
+                for session_dir in os.listdir(vectorstore_path):
+                    dir_path = os.path.join(vectorstore_path, session_dir)
+                    if os.path.isdir(dir_path):
+                        mtime = os.path.getmtime(dir_path)
+                        if (now - mtime) > expiration_seconds:
+                            print(f"[CLEANUP] Deleting expired session directory: {session_dir}")
+                            shutil.rmtree(dir_path, ignore_errors=True)
+        except Exception as e:
+            print(f"[CLEANUP] Error during cleanup: {e}")
+        await asyncio.sleep(15 * 60) # Run every 15 minutes
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: spawn the background cleanup task
+    task = asyncio.create_task(cleanup_old_sessions())
+    yield
+    # Shutdown: cancel the task
+    task.cancel()
 
 # ── App Initialization ─────────────────────────────────────────
 
@@ -26,7 +59,8 @@ from routers import upload, ask, challenge
 app = FastAPI(
     title="Smart Research Assistant API",
     description="Backend service for document-based Q&A and reasoning",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # ── Middleware ──────────────────────────────────────────────────

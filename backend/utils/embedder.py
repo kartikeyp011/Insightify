@@ -30,9 +30,7 @@ import faiss
 from dotenv import load_dotenv
 import google.generativeai as genai
 
-from utils.model_config import get_config
 from utils.embedding_providers import embed_text
-from utils.local_embedder import generate_local_embedding
 
 # ── Initialization ───────────────────────────────────────────────
 
@@ -41,70 +39,34 @@ load_dotenv()
 
 # Compute absolute paths to correctly resolve vectorstore storage locations
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-INDEX_PATH = os.path.join(BASE_DIR, "vectorstore", "faiss_index")
-META_PATH = os.path.join(BASE_DIR, "vectorstore", "chunk_texts.pkl")
+def get_session_paths(session_id: str):
+    """Returns the faiss_index and chunk_texts.pkl paths for the given session_id."""
+    session_dir = os.path.join(BASE_DIR, "vectorstore", session_id)
+    os.makedirs(session_dir, exist_ok=True)
+    return os.path.join(session_dir, "faiss_index"), os.path.join(session_dir, "chunk_texts.pkl")
 
 # ── Embedding Logic ──────────────────────────────────────────────
 
-def embed_and_store_chunks(chunks: list[str], api_key: str = None) -> None:
+def embed_and_store_chunks(chunks: list[str], session_id: str = None, api_key: str = None) -> None:
     """
     Embeds a list of text chunks using Gemini and stores them in a FAISS index.
-
-    This function calls the Gemini Embedding API for each chunk, converting the
-    semantic text into a high-dimensional vector. It creates a FAISS index using
-    L2 distance and stores the raw text locally so context can be retrieved via
-    index alignment.
-
-    Args:
-        chunks (list[str]): The plain text chunks to be embedded.
-
-    Returns:
-        None
-
-    Raises:
-        ValueError: If Gemini completely fails and produces 0 vectors.
     """
-    print(f"[INFO] Embedding {len(chunks)} chunks...")
+    if not session_id:
+        raise ValueError("session_id must be provided to save embeddings.")
+
+    print(f"[INFO] Embedding {len(chunks)} chunks for session {session_id}...")
 
     vectors = []
     cleaned_chunks = []
 
-    # Resolve the active mode once before the loop to avoid redundant config reads
-    cfg = get_config()
-    mode = cfg["mode"]
-    embedding_model = cfg.get("embedding_choice")  # Only set when mode == "local"
-
-    if mode == "local":
-        print(f"[LOCAL-EMBED] embed_and_store_chunks using local model: {embedding_model}")
-
     for idx, chunk in enumerate(chunks):
         chunk = chunk.strip()
         if not chunk:
-            # Skip iterations where chunk is purely whitespace to prevent API errors
             continue
 
         try:
-            if mode == "external":
-                # ── External mode: fallback chain (Gemini → Together AI → HF) ──
-                vector = embed_text(chunk, task="document")
-                vectors.append(np.array(vector, dtype="float32"))
-            elif mode == "local":
-                # ── Local mode: sentence-transformers (model from config) ──────
-                vector = generate_local_embedding(chunk, embedding_model, task="document")
-                vectors.append(np.array(vector, dtype="float32"))
-            else:
-                # ── Default: direct Gemini Embedding API call ────────────────
-                # Generate the embedding using the Gemini API explicitly designated for retrieval
-                if api_key:
-                    genai.configure(api_key=api_key)
-                response = genai.embed_content(
-                    model="models/gemini-embedding-2-preview",
-                    content=chunk,
-                    task_type="retrieval_document",
-                )
-                # Append the resulting vector parsed as float32 required by FAISS
-                vectors.append(np.array(response["embedding"], dtype="float32"))
-
+            vector = embed_text(chunk, task="document", api_key=api_key)
+            vectors.append(np.array(vector, dtype="float32"))
             cleaned_chunks.append(chunk)
 
         except Exception as e:
@@ -124,9 +86,11 @@ def embed_and_store_chunks(chunks: list[str], api_key: str = None) -> None:
     index = faiss.IndexFlatL2(dim)
     index.add(embeddings_array)
 
+    index_path, meta_path = get_session_paths(session_id)
+
     # Persist both the FAISS binary index and the original chunk text list
-    faiss.write_index(index, INDEX_PATH)
-    with open(META_PATH, "wb") as f:
+    faiss.write_index(index, index_path)
+    with open(meta_path, "wb") as f:
         pickle.dump(cleaned_chunks, f)
 
     print(f"[SUCCESS] FAISS index saved with {len(cleaned_chunks)} vectors.")
