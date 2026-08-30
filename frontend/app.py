@@ -18,6 +18,20 @@ import uuid
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
+def get_error_message(response) -> str:
+    """Safely extract error message from a response without exposing secrets."""
+    try:
+        data = response.json()
+        detail = data.get("detail", "Unknown error")
+        return str(detail)
+    except Exception:
+        error_text = response.text[:200] if response.text else "No response body"
+        if "gemini_api_key" in st.session_state and st.session_state.gemini_api_key:
+            error_text = error_text.replace(st.session_state.gemini_api_key, "***")
+        if "groq_api_key" in st.session_state and st.session_state.groq_api_key:
+            error_text = error_text.replace(st.session_state.groq_api_key, "***")
+        return f"HTTP {response.status_code}: {error_text}"
+
 # ── App Configuration & Layout ─────────────────────────────────
 
 st.set_page_config(page_title="InsightifyAI", layout="wide")
@@ -119,7 +133,7 @@ if tab == "📤 Upload Document":
                     else:
                         st.error("❌ No summary returned from backend.")
                 else:
-                    st.error(f"❌ Upload failed: {response.json().get('detail', 'Unknown error')}")
+                    st.error(f"❌ Upload failed: {get_error_message(response)}")
 
 # ── Tab 2: Ask Anything ────────────────────────────────────────
 elif tab == "❓ Ask Anything":
@@ -144,7 +158,7 @@ elif tab == "❓ Ask Anything":
                 st.markdown("### ✅ Answer")
                 st.markdown(response.json()["answer"])
             else:
-                st.error(f"❌ Error: {response.json()['detail']}")
+                st.error(f"❌ Error: {get_error_message(response)}")
 
 # ── Tab 3: Challenge Me ────────────────────────────────────────
 elif tab == "🧠 Challenge Me":
@@ -170,7 +184,7 @@ elif tab == "🧠 Challenge Me":
                 st.session_state.answers = ["", "", ""]
                 st.session_state.evaluation = []
             else:
-                st.error("❌ Failed to generate questions.")
+                st.error(f"❌ Failed to generate questions: {get_error_message(response)}")
 
     if st.session_state.questions:
         st.subheader("📋 Answer the Following Questions")
@@ -204,7 +218,7 @@ elif tab == "🧠 Challenge Me":
                 if response.status_code == 200:
                     st.session_state.evaluation = response.json()["feedback"]
                 else:
-                    st.error(f"❌ Evaluation failed: {response.json()['detail']}")
+                    st.error(f"❌ Evaluation failed: {get_error_message(response)}")
             else:
                 st.warning("⚠️ Please answer all 3 questions before submitting.")
 

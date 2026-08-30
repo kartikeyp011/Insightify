@@ -98,11 +98,11 @@ async def generate_challenge(
 
         # Generate 3 logic questions based on the text
         raw_output = generate_logic_questions(full_text, api_key=x_gemini_api_key, groq_api_key=x_groq_api_key)
-        print("🧪 RAW GEMINI OUTPUT:\n", raw_output)
+        print("DEBUG RAW GEMINI OUTPUT:\n", raw_output)
 
         # Clean and split into exactly 3 numbered questions
         questions = extract_questions_from_text(raw_output)
-        print("✅ Parsed Questions:", questions)
+        print("DEBUG Parsed Questions:", questions)
 
         if len(questions) < 3:
             raise Exception("Less than 3 valid questions extracted from Gemini output.")
@@ -110,7 +110,7 @@ async def generate_challenge(
         return {"questions": questions}
 
     except Exception as e:
-        print("❌ Error generating questions:", e)
+        print("ERROR generating questions:", e)
         raise HTTPException(status_code=500, detail=f"Error generating questions: {str(e)}")
 
 @router.post("/evaluate")
@@ -139,5 +139,5 @@ async def evaluate_answers(
         feedback = evaluate_user_answers(request.answers, session_id=x_session_id, api_key=x_gemini_api_key, groq_api_key=x_groq_api_key)
         return {"feedback": feedback}
     except Exception as e:
-        print("❌ Error evaluating answers:", e)
+        print("ERROR evaluating answers:", e)
         raise HTTPException(status_code=500, detail=f"Error evaluating answers: {str(e)}")
