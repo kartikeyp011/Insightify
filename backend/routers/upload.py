@@ -100,8 +100,9 @@ async def upload_file(
 
     try:
         # Step 5: Generate a short API-driven summary for the frontend
-        # NOTE: This uses Gemini behind the scenes.
-        summary = generate_summary(text, api_key=x_gemini_api_key, groq_api_key=x_groq_api_key)
+        # NOTE: This uses Gemini behind the scenes. We truncate text to avoid payload limits.
+        summary_text = text[:40000] if text else ""
+        summary = generate_summary(summary_text, api_key=x_gemini_api_key, groq_api_key=x_groq_api_key)
 
         # Step 6: Save raw text to a file (optional but useful for debugging full context)
         import os
