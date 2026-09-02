@@ -34,7 +34,7 @@ load_dotenv()
 
 GEMINI_KEY        = os.getenv("GEMINI_KEY")
 GROQ_KEY          = os.getenv("GROQ_API_KEY")
-GEMINI_MODEL      = "gemini-flash-latest"
+GEMINI_MODEL      = "gemini-2.5-flash"
 GROQ_MODEL        = "llama3-8b-8192"          # Fast, widely available on Groq
 
 # ── Private provider implementations ────────────────────────────
