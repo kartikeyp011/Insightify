@@ -58,13 +58,27 @@ def extract_questions_from_text(text: str) -> list[str]:
     if isinstance(text, list):
         text = "\n".join(text)
 
-    # Use regex to split text on numbered patterns like "1. ...", "2. ..."
-    raw_questions = re.split(r'\n?\s*\d+\.\s+', text.strip())
+    # Use regex to find all matches that look like questions ("1.", "Q1:", "2)", etc.)
+    matches = list(re.finditer(r'(?:^|\n)\s*(?:Q?\d+[:\.)])\s+', text))
+    if not matches:
+        # Fallback if no numbered pattern is found
+        raw_questions = [q.strip() for q in text.strip().split('\n') if q.strip()]
+        return raw_questions[:3]
 
-    # Remove any empty or whitespace-only entries resulting from the split
-    cleaned = [q.strip() for q in raw_questions if q.strip()]
+    cleaned = []
+    for i in range(len(matches)):
+        start = matches[i].end()
+        if i + 1 < len(matches):
+            end = matches[i+1].start()
+            q_text = text[start:end].strip()
+        else:
+            # Last question might have trailing commentary separated by double newline
+            rest = text[start:].strip()
+            q_text = rest.split('\n\n')[0].strip()
+        
+        if q_text:
+            cleaned.append(q_text)
 
-    # Return only the first 3 questions to ensure a consistent experience
     return cleaned[:3]
 
 # ── Endpoints ────────────────────────────────────────────────────
